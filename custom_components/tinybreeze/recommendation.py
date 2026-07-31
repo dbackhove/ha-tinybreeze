@@ -207,6 +207,10 @@ OUTDOOR_ONLY: frozenset[str] = frozenset(
 # Bulk that must not go into a car seat.
 CAR_FORBIDDEN: frozenset[str] = frozenset({ITEM_WINTER_JACKET, ITEM_WINTER_SUIT})
 
+# Warning keys. Translated in sensor.py and in the card, never here.
+WARNING_CAR_SEAT = "autositz"
+WARNING_CARRIER_HEAT = "trage_hitze"
+
 
 @dataclass(frozen=True)
 class Recommendation:
@@ -237,3 +241,71 @@ def situation_shift(situation: Situation, temperature: float) -> int:
     if situation is Situation.CARRIER:
         return -1
     return 0
+
+
+HINT_CARRIER = "carrier_legs"
+HINT_CAR = "car_seat"
+HINT_STROLLER_RAIN = "stroller_rain_cover"
+
+RAIN_CONDITIONS: frozenset[str] = frozenset(
+    {"rainy", "pouring", "lightning-rainy", "hail", "snowy-rainy"}
+)
+
+
+def _clamp(index: int) -> int:
+    return max(0, min(MAX_INDEX, index))
+
+
+def recommend_outdoor(
+    situation: Situation,
+    temperature: float,
+    age_months: int,
+    weather_condition: str,
+) -> Recommendation:
+    """Build a recommendation for one of the four outdoor situations.
+
+    `Situation.HOME` and `Situation.SLEEP` are handled elsewhere: they read
+    room temperature and drop or replace the outdoor half of the table.
+    """
+    index = bucket_index(temperature)
+    index += age_shift(age_months, temperature)
+    index += situation_shift(situation, temperature)
+    index = _clamp(index)
+
+    warnings: list[str] = []
+    if situation is Situation.CAR and index > CAR_MAX_INDEX:
+        warnings.append(WARNING_CAR_SEAT)
+        index = CAR_MAX_INDEX
+
+    outfit = list(BASE_TABLE[index])
+    hint: str | None = None
+
+    if situation is Situation.STROLLER:
+        if temperature < FOOTMUFF_MAX_TEMPERATURE:
+            outfit.append(ITEM_FOOTMUFF)
+        if weather_condition in RAIN_CONDITIONS:
+            outfit.append(ITEM_RAIN_COVER)
+            # A rain cover traps heat as effectively as it keeps water out.
+            hint = HINT_STROLLER_RAIN
+
+    elif situation is Situation.CARRIER:
+        # A thick jacket also compromises the spread-squat position.
+        outfit = [item for item in outfit if item not in CAR_FORBIDDEN]
+        outfit.append(ITEM_LEG_WARMERS)
+        hint = HINT_CARRIER
+        if temperature >= CARRIER_HEAT_TEMPERATURE:
+            warnings.append(WARNING_CARRIER_HEAT)
+
+    elif situation is Situation.CAR:
+        outfit = [item for item in outfit if item not in CAR_FORBIDDEN]
+        outfit.append(ITEM_BLANKET)
+        hint = HINT_CAR
+
+    return Recommendation(
+        level=LEVELS[index],
+        outfit=tuple(outfit),
+        layers=count_layers(tuple(outfit)),
+        hint=hint,
+        warnings=tuple(warnings),
+        base_temperature=temperature,
+    )
