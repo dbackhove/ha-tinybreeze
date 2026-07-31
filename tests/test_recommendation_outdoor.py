@@ -9,6 +9,8 @@ from custom_components.tinybreeze.recommendation import (
     ITEM_RAIN_COVER,
     ITEM_WINTER_JACKET,
     ITEM_WINTER_SUIT,
+    WARNING_CAR_SEAT,
+    WARNING_CARRIER_HEAT,
     Level,
     Situation,
     recommend_outdoor,
@@ -56,12 +58,27 @@ def test_carrier_adds_leg_warmers_and_drops_bulky_jackets() -> None:
     assert ITEM_WINTER_SUIT not in result.outfit
 
 
+def test_carrier_filter_actually_removes_a_winter_jacket() -> None:
+    # Bucket index 5 (BASE_TABLE) really does contain ITEM_WINTER_JACKET, so
+    # this is the case where the CAR_FORBIDDEN filter has something to do --
+    # unlike the 2.0 C case above, where bucket index 4 never had one.
+    result = recommend_outdoor(Situation.CARRIER, -5.0, 6, "cloudy")
+    assert ITEM_WINTER_JACKET not in result.outfit
+    assert ITEM_LEG_WARMERS in result.outfit
+
+
+def test_carrier_warns_about_heat_at_high_temperature() -> None:
+    result = recommend_outdoor(Situation.CARRIER, 23.0, 6, "sunny")
+    assert WARNING_CARRIER_HEAT in result.warnings
+
+
 def test_car_never_uses_bulky_clothing_and_adds_a_blanket() -> None:
     result = recommend_outdoor(Situation.CAR, -10.0, 6, "snowy")
     assert ITEM_WINTER_JACKET not in result.outfit
     assert ITEM_WINTER_SUIT not in result.outfit
     assert ITEM_BLANKET in result.outfit
     assert result.level == Level.WARM  # capped at index 4
+    assert WARNING_CAR_SEAT in result.warnings
 
 
 def test_layers_are_counted() -> None:
