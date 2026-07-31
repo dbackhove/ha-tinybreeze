@@ -9,6 +9,7 @@ from custom_components.tinybreeze.recommendation import (
     ITEM_LIGHT_JACKET,
     ITEM_SHOES,
     ITEM_THIN_SOCKS,
+    ITEM_VEST,
     WARNING_NO_HAT,
     SleepLevel,
     recommend_home,
@@ -48,10 +49,18 @@ def test_sleep_never_includes_a_hat() -> None:
 
 
 def test_home_drops_outdoor_items() -> None:
+    # In BASE_TABLE, thin_socks never shares a bucket row with a jacket, hat
+    # or shoes (those only start appearing once the table switches to
+    # regular socks), so no temperature can make all three "not in outfit"
+    # checks below load-bearing at once -- they hold vacuously here, because
+    # none of those three items were ever in this bucket's row to begin
+    # with. The vest is: 19 C's row has one, so its removal is the part of
+    # this test that actually exercises the OUTDOOR_ONLY filter.
     result = recommend_home(19.0, 6)
     assert ITEM_LIGHT_JACKET not in result.outfit
     assert ITEM_SHOES not in result.outfit
     assert ITEM_HAT not in result.outfit
+    assert ITEM_VEST not in result.outfit
     assert ITEM_THIN_SOCKS in result.outfit
 
 
