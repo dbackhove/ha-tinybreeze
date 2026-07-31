@@ -199,7 +199,7 @@ Grenzen von NHS und Lullaby Trust, damit die Regel deterministisch bleibt.
 |---|---|---|
 | ≥ 24 °C | `sehr_leicht` | Kurzarmbody |
 | 21–23 °C | `leicht` | Kurzarmbody, leichte Hose |
-| 18–20 °C | `mittel` | Langarmbody, leichte Hose, dünne Söckchen |
+| 18–20 °C | `mittel` | Langarmbody, Hose, dünne Söckchen |
 | 16–17 °C | `warm` | Langarmbody, Strampler, Pullover, Socken |
 | < 16 °C | `sehr_warm` | Langarmbody, Strampler, Pullover, Fleeceanzug, Socken |
 
