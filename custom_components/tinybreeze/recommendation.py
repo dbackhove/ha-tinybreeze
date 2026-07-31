@@ -210,6 +210,8 @@ CAR_FORBIDDEN: frozenset[str] = frozenset({ITEM_WINTER_JACKET, ITEM_WINTER_SUIT}
 # Warning keys. Translated in sensor.py and in the card, never here.
 WARNING_CAR_SEAT = "autositz"
 WARNING_CARRIER_HEAT = "trage_hitze"
+WARNING_NO_HAT = "keine_muetze"
+WARNING_OVERHEATING = "ueberhitzung"
 
 
 @dataclass(frozen=True)
@@ -308,4 +310,70 @@ def recommend_outdoor(
         hint=hint,
         warnings=tuple(warnings),
         base_temperature=temperature,
+    )
+
+
+class SleepLevel(StrEnum):
+    """Sleep states carry the sleeping bag, because that is the decision."""
+
+    TOG_0_5 = "tog_0_5"
+    TOG_1_0 = "tog_1_0"
+    TOG_2_5 = "tog_2_5"
+    TOG_3_5 = "tog_3_5"
+
+
+# Lower bound, TOG value, level, what goes underneath. Warmest room first.
+# Manufacturer tables overlap (2.5 TOG for 15-21 C, 1.0 TOG for 18-24 C);
+# these are the non-overlapping NHS / Lullaby Trust boundaries, so the rule
+# stays deterministic.
+SLEEP_TABLE: tuple[tuple[float, float, SleepLevel, tuple[str, ...]], ...] = (
+    (25.0, 0.5, SleepLevel.TOG_0_5, (ITEM_DIAPER_ONLY,)),
+    (21.0, 1.0, SleepLevel.TOG_1_0, (ITEM_SHORT_SLEEVE_BODY,)),
+    (16.0, 2.5, SleepLevel.TOG_2_5, (ITEM_LONG_SLEEVE_BODY, ITEM_PYJAMAS)),
+    (float("-inf"), 3.5, SleepLevel.TOG_3_5, (ITEM_LONG_SLEEVE_BODY, ITEM_PYJAMAS)),
+)
+
+# Recommended sleeping room is 16-20 C; above this the card warns.
+ROOM_TEMPERATURE_WARN_ABOVE = 21.0
+
+HINT_SLEEP = "sleep_no_loose_bedding"
+
+
+def recommend_sleep(room_temperature: float) -> Recommendation:
+    """Pick a sleeping bag and what goes underneath it."""
+    for lower, tog, level, underneath in SLEEP_TABLE:
+        if room_temperature >= lower:
+            break
+
+    warnings = [WARNING_NO_HAT]
+    if room_temperature > ROOM_TEMPERATURE_WARN_ABOVE:
+        warnings.append(WARNING_OVERHEATING)
+
+    return Recommendation(
+        level=level,
+        outfit=underneath,
+        layers=count_layers(underneath),
+        hint=HINT_SLEEP,
+        warnings=tuple(warnings),
+        base_temperature=room_temperature,
+        tog=tog,
+    )
+
+
+def recommend_home(room_temperature: float, age_months: int) -> Recommendation:
+    """Indoors and awake: the base table without anything meant for outside."""
+    index = _clamp(bucket_index(room_temperature) + age_shift(age_months, room_temperature))
+    outfit = tuple(item for item in BASE_TABLE[index] if item not in OUTDOOR_ONLY)
+
+    warnings: list[str] = []
+    if room_temperature > ROOM_TEMPERATURE_WARN_ABOVE:
+        warnings.append(WARNING_OVERHEATING)
+
+    return Recommendation(
+        level=LEVELS[index],
+        outfit=outfit,
+        layers=count_layers(outfit),
+        hint=None,
+        warnings=tuple(warnings),
+        base_temperature=room_temperature,
     )
