@@ -360,17 +360,45 @@ def recommend_sleep(room_temperature: float) -> Recommendation:
     )
 
 
+# Home's own indoor table. Filtering BASE_TABLE through OUTDOOR_ONLY does not
+# work here: from row 4 on, BASE_TABLE carries its extra warmth in outerwear
+# (fleece_jacket replaces sweater), so filtering leaves *fewer* indoor layers
+# one row down than the row above -- inverting the age shift at 16-17 C, the
+# recommended bedroom temperature. This table is monotonic by construction;
+# BASE_TABLE and the outdoor rules stay untouched. Reuses Level -- only five
+# of its seven values are reachable indoors, and that is fine.
+HOME_TABLE: tuple[tuple[float, Level, tuple[str, ...]], ...] = (
+    (24.0, Level.VERY_LIGHT, (ITEM_SHORT_SLEEVE_BODY,)),
+    (21.0, Level.LIGHT, (ITEM_SHORT_SLEEVE_BODY, ITEM_LIGHT_TROUSERS)),
+    (18.0, Level.MEDIUM, (ITEM_LONG_SLEEVE_BODY, ITEM_TROUSERS, ITEM_THIN_SOCKS)),
+    (16.0, Level.WARM, (ITEM_LONG_SLEEVE_BODY, ITEM_ROMPER, ITEM_SWEATER, ITEM_SOCKS)),
+    (
+        float("-inf"),
+        Level.VERY_WARM,
+        (ITEM_LONG_SLEEVE_BODY, ITEM_ROMPER, ITEM_SWEATER, ITEM_FLEECE_SUIT, ITEM_SOCKS),
+    ),
+)
+
+# The bottom band is split at 16 C so the age shift below always has a
+# warmer band to move into, rather than running into the table's edge.
+HOME_MAX_INDEX = len(HOME_TABLE) - 1
+
+
 def recommend_home(room_temperature: float, age_months: int) -> Recommendation:
-    """Indoors and awake: the base table without anything meant for outside."""
-    index = _clamp(bucket_index(room_temperature) + age_shift(age_months, room_temperature))
-    outfit = tuple(item for item in BASE_TABLE[index] if item not in OUTDOOR_ONLY)
+    """Indoors and awake: its own monotonic table, not the outdoor one."""
+    for index, (lower, _level, _outfit) in enumerate(HOME_TABLE):
+        if room_temperature >= lower:
+            break
+
+    index = min(HOME_MAX_INDEX, index + age_shift(age_months, room_temperature))
+    _, level, outfit = HOME_TABLE[index]
 
     warnings: list[str] = []
     if room_temperature > ROOM_TEMPERATURE_WARN_ABOVE:
         warnings.append(WARNING_OVERHEATING)
 
     return Recommendation(
-        level=LEVELS[index],
+        level=level,
         outfit=outfit,
         layers=count_layers(outfit),
         hint=None,

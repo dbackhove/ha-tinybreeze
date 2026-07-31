@@ -1,4 +1,4 @@
-"""Sleep uses the TOG table; home uses the base table minus everything outdoor."""
+"""Sleep uses the TOG table; home has its own monotonic indoor table."""
 
 from __future__ import annotations
 
@@ -6,11 +6,9 @@ import pytest
 
 from custom_components.tinybreeze.recommendation import (
     ITEM_HAT,
-    ITEM_LIGHT_JACKET,
     ITEM_SHOES,
-    ITEM_THIN_SOCKS,
-    ITEM_VEST,
     WARNING_NO_HAT,
+    Level,
     SleepLevel,
     recommend_home,
     recommend_sleep,
@@ -48,31 +46,55 @@ def test_sleep_never_includes_a_hat() -> None:
         assert WARNING_NO_HAT in result.warnings
 
 
-def test_home_drops_outdoor_items() -> None:
-    # In BASE_TABLE, thin_socks never shares a bucket row with a jacket, hat
-    # or shoes (those only start appearing once the table switches to
-    # regular socks), so no temperature can make all three "not in outfit"
-    # checks below load-bearing at once -- they hold vacuously here, because
-    # none of those three items were ever in this bucket's row to begin
-    # with. The vest is: 19 C's row has one, so its removal is the part of
-    # this test that actually exercises the OUTDOOR_ONLY filter.
-    result = recommend_home(19.0, 6)
-    assert ITEM_LIGHT_JACKET not in result.outfit
-    assert ITEM_SHOES not in result.outfit
-    assert ITEM_HAT not in result.outfit
-    assert ITEM_VEST not in result.outfit
-    assert ITEM_THIN_SOCKS in result.outfit
+@pytest.mark.parametrize(
+    ("room_temperature", "level"),
+    [
+        (24.0, Level.VERY_LIGHT),
+        (23.9, Level.LIGHT),
+        (21.0, Level.LIGHT),
+        (20.9, Level.MEDIUM),
+        (18.0, Level.MEDIUM),
+        (17.9, Level.WARM),
+        (16.0, Level.WARM),
+        (15.9, Level.VERY_WARM),
+    ],
+)
+def test_home_table_boundaries(room_temperature: float, level: str) -> None:
+    # age=6 keeps the age shift out of it -- this is the table on its own.
+    assert recommend_home(room_temperature, 6).level == level
 
 
-def test_home_still_applies_the_age_shift() -> None:
-    # 12.0 C (not the brief's 14.0 C): at 14.0 C the age shift moves the
-    # bucket index from MEDIUM to WARM, and WARM's only extra warmth over
-    # MEDIUM is a fleece jacket + hat + shoes -- all OUTDOOR_ONLY, so indoors
-    # the newborn would end up with *fewer* layers than the older baby
-    # (2 vs. 3), a false negative for this test. 12.0 C shifts WARM to
-    # VERY_WARM instead, where the extra layer is a fleece suit, which is
-    # not outdoor-only, so it survives the strip and the assertion is
-    # genuinely load-bearing.
-    older = recommend_home(12.0, 6)
-    newborn = recommend_home(12.0, 2)
+@pytest.mark.parametrize("room_temperature", [16.0, 17.0])
+def test_home_age_shift_no_longer_inverts_at_recommended_bedroom_temperature(
+    room_temperature: float,
+) -> None:
+    # The regression that started this change: recommend_home used to filter
+    # BASE_TABLE through OUTDOOR_ONLY, and at 16-17 C -- the recommended
+    # bedroom range -- that left a 2-month-old with *fewer* layers than a
+    # 6-month-old, because the row's only extra warmth over the one above
+    # was outdoor-only gear. With its own table this must never invert.
+    older = recommend_home(room_temperature, 6)
+    newborn = recommend_home(room_temperature, 2)
     assert newborn.layers > older.layers
+
+
+def test_home_age_shift_moves_a_band() -> None:
+    older = recommend_home(19.0, 6)
+    newborn = recommend_home(19.0, 2)
+    assert older.level == Level.MEDIUM
+    assert newborn.level == Level.WARM
+
+
+def test_home_age_shift_absent_at_or_above_20() -> None:
+    older = recommend_home(20.0, 6)
+    newborn = recommend_home(20.0, 2)
+    assert older.level == Level.MEDIUM
+    assert newborn.level == Level.MEDIUM
+
+
+def test_home_never_includes_a_hat_or_shoes() -> None:
+    for room_temperature in (24.0, 21.0, 18.0, 16.0, 10.0):
+        for age_months in (2, 6):
+            result = recommend_home(room_temperature, age_months)
+            assert ITEM_HAT not in result.outfit
+            assert ITEM_SHOES not in result.outfit
