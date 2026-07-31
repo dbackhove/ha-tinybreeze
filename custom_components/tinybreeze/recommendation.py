@@ -212,6 +212,8 @@ WARNING_CAR_SEAT = "autositz"
 WARNING_CARRIER_HEAT = "trage_hitze"
 WARNING_NO_HAT = "keine_muetze"
 WARNING_OVERHEATING = "ueberhitzung"
+WARNING_UV = "uv"
+WARNING_MIDDAY = "mittagszeit"
 
 
 @dataclass(frozen=True)
@@ -416,9 +418,6 @@ class UvLevel(StrEnum):
     VERY_HIGH = "sehr_hoch"
     EXTREME = "extrem"
 
-
-WARNING_UV = "uv"
-WARNING_MIDDAY = "mittagszeit"
 
 SUNSCREEN_NONE = "none"
 SUNSCREEN_SPF30_PLUS = "spf30_plus"
