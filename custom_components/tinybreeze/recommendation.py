@@ -405,3 +405,132 @@ def recommend_home(room_temperature: float, age_months: int) -> Recommendation:
         warnings=tuple(warnings),
         base_temperature=room_temperature,
     )
+
+
+class UvLevel(StrEnum):
+    """WHO bands, as published by BfS and DWD."""
+
+    LOW = "niedrig"
+    MODERATE = "mittel"
+    HIGH = "hoch"
+    VERY_HIGH = "sehr_hoch"
+    EXTREME = "extrem"
+
+
+WARNING_UV = "uv"
+WARNING_MIDDAY = "mittagszeit"
+
+SUNSCREEN_NONE = "none"
+SUNSCREEN_SPF30_PLUS = "spf30_plus"
+
+UV_PROTECTION_THRESHOLD = 3.0
+MIDDAY_START_HOUR = 11
+MIDDAY_END_HOUR = 15
+SUNSCREEN_MIN_AGE_MONTHS = 12
+
+# Lower bound, level. Highest first.
+UV_TABLE: tuple[tuple[float, UvLevel], ...] = (
+    (11.0, UvLevel.EXTREME),
+    (8.0, UvLevel.VERY_HIGH),
+    (6.0, UvLevel.HIGH),
+    (3.0, UvLevel.MODERATE),
+    (float("-inf"), UvLevel.LOW),
+)
+
+MEASURE_SHADE = "shade"
+MEASURE_MIDDAY_INDOORS = "midday_indoors"
+MEASURE_AVOID_OUTDOORS = "avoid_outdoors"
+MEASURE_CLOTHING = "uv_clothing"
+MEASURE_SUN_HAT = "sun_hat_with_neck_flap"
+MEASURE_NO_DIRECT_SUN = "no_direct_sun"
+
+UV_MEASURES: dict[UvLevel, tuple[str, ...]] = {
+    UvLevel.LOW: (),
+    UvLevel.MODERATE: (MEASURE_SHADE, MEASURE_CLOTHING, MEASURE_SUN_HAT),
+    UvLevel.HIGH: (MEASURE_SHADE, MEASURE_CLOTHING, MEASURE_SUN_HAT),
+    UvLevel.VERY_HIGH: (MEASURE_MIDDAY_INDOORS, MEASURE_CLOTHING, MEASURE_SUN_HAT),
+    UvLevel.EXTREME: (MEASURE_AVOID_OUTDOORS, MEASURE_CLOTHING, MEASURE_SUN_HAT),
+}
+
+
+@dataclass(frozen=True)
+class UvAdvice:
+    """Sun protection for one moment."""
+
+    level: str
+    measures: tuple[str, ...]
+    sunscreen: str
+    warnings: tuple[str, ...]
+
+
+def uv_advice(uv_index: float, age_months: int, hour: int) -> UvAdvice:
+    """Sun protection for a UV index, an age and a time of day."""
+    for lower, level in UV_TABLE:
+        if uv_index >= lower:
+            break
+
+    measures = list(UV_MEASURES[level])
+    if age_months < SUNSCREEN_MIN_AGE_MONTHS:
+        # No direct sun at all in the first year, and no sunscreen: it
+        # burdens the skin without being needed once shade and clothing do
+        # the work.
+        sunscreen = SUNSCREEN_NONE
+        if MEASURE_NO_DIRECT_SUN not in measures:
+            measures.insert(0, MEASURE_NO_DIRECT_SUN)
+    else:
+        sunscreen = SUNSCREEN_SPF30_PLUS
+
+    warnings: list[str] = []
+    if uv_index >= UV_PROTECTION_THRESHOLD:
+        warnings.append(WARNING_UV)
+        if MIDDAY_START_HOUR <= hour < MIDDAY_END_HOUR:
+            warnings.append(WARNING_MIDDAY)
+
+    return UvAdvice(
+        level=level,
+        measures=tuple(measures),
+        sunscreen=sunscreen,
+        warnings=tuple(warnings),
+    )
+
+
+OUTDOOR_SITUATIONS: frozenset[Situation] = frozenset(
+    {Situation.STROLLER, Situation.CARRIER, Situation.CAR, Situation.GENERAL}
+)
+
+
+def recommend(
+    situation: Situation,
+    outdoor_temperature: float,
+    room_temperature: float,
+    age_months: int,
+    weather_condition: str,
+    uv_index: float | None,
+    hour: int,
+) -> Recommendation:
+    """The single entry point the coordinator calls.
+
+    Routes to the right rule set and folds UV warnings into the outdoor ones.
+    Sun exposure is not a thing that happens in a cot, so indoor situations
+    never carry UV warnings.
+    """
+    if situation is Situation.SLEEP:
+        return recommend_sleep(room_temperature)
+    if situation is Situation.HOME:
+        return recommend_home(room_temperature, age_months)
+
+    result = recommend_outdoor(situation, outdoor_temperature, age_months, weather_condition)
+
+    if uv_index is not None and situation in OUTDOOR_SITUATIONS:
+        uv = uv_advice(uv_index, age_months, hour)
+        if uv.warnings:
+            result = Recommendation(
+                level=result.level,
+                outfit=result.outfit,
+                layers=result.layers,
+                hint=result.hint,
+                warnings=result.warnings + uv.warnings,
+                base_temperature=result.base_temperature,
+                tog=result.tog,
+            )
+    return result
