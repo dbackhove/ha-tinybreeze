@@ -1,5 +1,7 @@
 """The temperature buckets from the spec, boundary by boundary."""
 
+from __future__ import annotations
+
 import pytest
 
 from custom_components.tinybreeze.recommendation import (

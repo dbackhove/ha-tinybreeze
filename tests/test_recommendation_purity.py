@@ -1,6 +1,8 @@
 """The rule module must stay free of Home Assistant so it can be reasoned
 about and tested on its own."""
 
+from __future__ import annotations
+
 import ast
 from pathlib import Path
 

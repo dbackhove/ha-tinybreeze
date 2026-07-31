@@ -2,6 +2,8 @@
 pytest-homeassistant-custom-component before HA will load anything from
 custom_components/."""
 
+from __future__ import annotations
+
 import pytest
 
 
