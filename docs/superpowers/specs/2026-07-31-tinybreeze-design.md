@@ -169,7 +169,7 @@ Säuglingen das größere Risiko, nicht Kälte.
 | Kinderwagen | Außentemperatur | +1 bei < 15 °C | Fußsack ab < 10 °C. Regenverdeck bei Regen, aber Hinweis auf Wärmestau darunter. Das Kind bewegt sich nicht und erzeugt keine eigene Wärme. |
 | Babytrage | Außentemperatur | −1 | Körperwärme der tragenden Person ersetzt eine Schicht am Oberkörper. Beine und Füße liegen frei: extra Socken oder Stulpen. Keine dicke Jacke — sie beeinträchtigt die Anhock-Spreiz-Haltung. Ab 23 °C Warnung wegen Überhitzung. |
 | Auto | Außentemperatur | 0, Index gedeckelt auf 4 | Keine dicke Winterkleidung im Sitz. Decke erst **nach** dem Anschnallen über den Schoß. Fleece oder Wollwalk statt wattierter Jacke. |
-| Zuhause | Raumtemperatur | 0 | Die Außenteile der Basistabelle entfallen: keine Jacke, keine Mütze, keine Schuhe, kein Halstuch. Socken oder Anti-Rutsch-Söckchen. |
+| Zuhause | Raumtemperatur | — | Eigene Innentabelle, siehe unten. |
 | Schlafen | Raumtemperatur | — | Eigene TOG-Tabelle, siehe unten. |
 
 Die Auto-Deckelung ist kein Komfortdetail. Wattierte Kleidung lässt Spiel
@@ -192,6 +192,32 @@ Kissen. Empfohlene Raumtemperatur 16–20 °C, optimal 18 °C.
 Hersteller-TOG-Tabellen überlappen sich (2,5 TOG wird für 15–21 °C angegeben,
 1,0 TOG für 18–24 °C). Übernommen sind deshalb die überschneidungsfreien
 Grenzen von NHS und Lullaby Trust, damit die Regel deterministisch bleibt.
+
+### Zuhause
+
+| Raumtemperatur | Stufe | Kleidung |
+|---|---|---|
+| ≥ 24 °C | `sehr_leicht` | Kurzarmbody |
+| 21–23 °C | `leicht` | Kurzarmbody, leichte Hose |
+| 18–20 °C | `mittel` | Langarmbody, leichte Hose, dünne Söckchen |
+| 16–17 °C | `warm` | Langarmbody, Strampler, Pullover, Socken |
+| < 16 °C | `sehr_warm` | Langarmbody, Strampler, Pullover, Fleeceanzug, Socken |
+
+Keine Mütze, keine Schuhe. Der Altersmodifikator gilt wie draußen: unter vier
+Monaten ein Band wärmer, aber nur unterhalb von 20 °C.
+
+Diese Tabelle existiert, weil der ursprüngliche Entwurf — Basistabelle nehmen
+und die Draußen-Teile herausfiltern — nicht funktioniert. Die Wärmezunahme der
+Basistabelle steckt ab Zeile 4 in der Oberbekleidung: `fleece_jacket` ersetzt
+dort den `sweater`. Nach dem Filtern bleibt eine Zeile weiter unten also
+*weniger* übrig als eine Zeile darüber. Konkret bekam ein zwei Monate altes
+Kind bei 16–17 °C Raumtemperatur zwei Schichten, ein sechs Monate altes drei —
+der Altersmodifikator kehrte sich um, ausgerechnet bei der empfohlenen
+Schlafzimmertemperatur. Eine eigene Tabelle ist per Konstruktion monoton; die
+Basistabelle bleibt unangetastet und damit auch die Draußen-Regeln.
+
+Das unterste Band ist bei 16 °C geteilt, damit der Altersmodifikator dort nicht
+gegen die Tabellenkante läuft und wirkungslos wird.
 
 ### UV
 
