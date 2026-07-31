@@ -10,6 +10,7 @@ sensor.py and in the card.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -164,3 +165,75 @@ def bucket_index(temperature: float) -> int:
 def count_layers(outfit: tuple[str, ...]) -> int:
     """How many actual clothing layers an outfit has, accessories excluded."""
     return sum(1 for item in outfit if item in LAYER_ITEMS)
+
+
+# Above this the "one more layer than an adult" rule of thumb inverts:
+# overheating is the greater risk for infants. A setting, not a citation --
+# see the spec's list of assumptions.
+AGE_SHIFT_MAX_TEMPERATURE = 20.0
+NEWBORN_MAX_MONTHS = 4
+
+# A child in a stroller does not move and generates no warmth of its own.
+STROLLER_SHIFT_MAX_TEMPERATURE = 15.0
+FOOTMUFF_MAX_TEMPERATURE = 10.0
+
+# Padded clothing leaves slack between belt and body; the lap belt rides up
+# into the abdomen and can injure liver, bowel or spleen in a crash. Capping
+# the index here is what keeps a winter suit out of the car seat.
+CAR_MAX_INDEX = 4
+
+CARRIER_HEAT_TEMPERATURE = 23.0
+
+# Items that make no sense indoors.
+OUTDOOR_ONLY: frozenset[str] = frozenset(
+    {
+        ITEM_VEST,
+        ITEM_LIGHT_JACKET,
+        ITEM_FLEECE_JACKET,
+        ITEM_WINTER_JACKET,
+        ITEM_WINTER_SUIT,
+        ITEM_SUN_HAT,
+        ITEM_THIN_HAT,
+        ITEM_HAT,
+        ITEM_WINTER_HAT,
+        ITEM_MITTENS,
+        ITEM_SCARF,
+        ITEM_SHOES,
+        ITEM_FOOTMUFF,
+        ITEM_RAIN_COVER,
+    }
+)
+
+# Bulk that must not go into a car seat.
+CAR_FORBIDDEN: frozenset[str] = frozenset({ITEM_WINTER_JACKET, ITEM_WINTER_SUIT})
+
+
+@dataclass(frozen=True)
+class Recommendation:
+    """One answer, ready to be turned into entity state and attributes."""
+
+    level: str
+    outfit: tuple[str, ...]
+    layers: int
+    hint: str | None
+    warnings: tuple[str, ...]
+    base_temperature: float
+    tog: float | None = None
+
+
+def age_shift(age_months: int, temperature: float) -> int:
+    """Newborns regulate poorly and lose heat faster -- but only when cold."""
+    if age_months >= NEWBORN_MAX_MONTHS:
+        return 0
+    if temperature >= AGE_SHIFT_MAX_TEMPERATURE:
+        return 0
+    return 1
+
+
+def situation_shift(situation: Situation, temperature: float) -> int:
+    """How the situation moves the bucket index."""
+    if situation is Situation.STROLLER and temperature < STROLLER_SHIFT_MAX_TEMPERATURE:
+        return 1
+    if situation is Situation.CARRIER:
+        return -1
+    return 0
