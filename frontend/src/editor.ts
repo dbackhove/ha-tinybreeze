@@ -103,6 +103,14 @@ class TinybreezeCardEditor extends LitElement {
     );
   }
 
+  // ha-form's own default label (the raw schema.name, e.g. "show_room_
+  // temperature") would defeat the point of building on ha-form "so the
+  // controls look and behave like every other card editor" -- this is what
+  // actually supplies that label, translated, the same way ha-pareto's
+  // editor does for its own fields.
+  private _label = (schema: SchemaEntry): string =>
+    translate(editorLanguage(this.hass), "editor", schema.name);
+
   override render(): TemplateResult | typeof nothing {
     if (!this.hass || !this._config) return nothing;
     return html`
@@ -110,6 +118,7 @@ class TinybreezeCardEditor extends LitElement {
         .hass=${this.hass}
         .data=${this._config}
         .schema=${editorSchema(this.hass)}
+        .computeLabel=${this._label}
         @value-changed=${this._valueChanged}
       ></ha-form>
     `;

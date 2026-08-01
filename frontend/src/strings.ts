@@ -118,6 +118,22 @@ const EN = {
     tog: "TOG",
     uv: "UV",
   },
+  // Keyed by editorSchema()'s own field names (editor.ts), and consumed by
+  // the editor's ha-form via computeLabel -- so a person configuring the
+  // card sees "Show room temperature", not the raw "show_room_temperature".
+  // Card-only, like "situation"/"info"/"error"/"level"/"label" above: there
+  // is no backend config-flow field to drift against, since the backend's
+  // own options flow has an entirely different set of fields (data sources,
+  // not display toggles).
+  editor: {
+    entry: "Child",
+    situations: "Visible situations",
+    default_situation: "Default situation",
+    show_weather: "Show weather",
+    show_room_temperature: "Show room temperature",
+    show_uv: "Show UV index",
+    show_age: "Show age",
+  },
 } as const;
 
 const DE: Translations<typeof EN> = {
@@ -208,6 +224,15 @@ const DE: Translations<typeof EN> = {
   label: {
     tog: "TOG",
     uv: "UV",
+  },
+  editor: {
+    entry: "Kind",
+    situations: "Angezeigte Situationen",
+    default_situation: "Voreingestellte Situation",
+    show_weather: "Wetter anzeigen",
+    show_room_temperature: "Raumtemperatur anzeigen",
+    show_uv: "UV-Index anzeigen",
+    show_age: "Alter anzeigen",
   },
 };
 

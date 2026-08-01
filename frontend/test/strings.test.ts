@@ -155,3 +155,51 @@ describe("label", () => {
     expect(translate("de", "label", "uv")).toBe("UV");
   });
 });
+
+describe("editor", () => {
+  // Pinned to the exact prose for all seven editorSchema() field names, in
+  // both languages -- not just "is non-empty", which would pass just as
+  // well against a wrong-category wiring bug (e.g. reading from "label" or
+  // "situation" instead of "editor") or against translate()'s own
+  // unknown-key fallback silently returning the raw identifier.
+  const EXPECTED_EN: Record<string, string> = {
+    entry: "Child",
+    situations: "Visible situations",
+    default_situation: "Default situation",
+    show_weather: "Show weather",
+    show_room_temperature: "Show room temperature",
+    show_uv: "Show UV index",
+    show_age: "Show age",
+  };
+
+  const EXPECTED_DE: Record<string, string> = {
+    entry: "Kind",
+    situations: "Angezeigte Situationen",
+    default_situation: "Voreingestellte Situation",
+    show_weather: "Wetter anzeigen",
+    show_room_temperature: "Raumtemperatur anzeigen",
+    show_uv: "UV-Index anzeigen",
+    show_age: "Alter anzeigen",
+  };
+
+  it("translates every editor field label in English", () => {
+    for (const [key, expected] of Object.entries(EXPECTED_EN)) {
+      expect(translate("en", "editor", key)).toBe(expected);
+    }
+  });
+
+  it("translates every editor field label in German", () => {
+    for (const [key, expected] of Object.entries(EXPECTED_DE)) {
+      expect(translate("de", "editor", key)).toBe(expected);
+    }
+  });
+
+  it("covers exactly these 7 keys -- no more, no fewer", () => {
+    expect(Object.keys(STRINGS.en.editor).sort()).toEqual(Object.keys(EXPECTED_EN).sort());
+  });
+
+  it("falls back to the raw field name for an unrecognised schema entry, rather than empty text", () => {
+    expect(translate("en", "editor", "some_future_field")).toBe("some_future_field");
+    expect(translate("de", "editor", "some_future_field")).toBe("some_future_field");
+  });
+});
