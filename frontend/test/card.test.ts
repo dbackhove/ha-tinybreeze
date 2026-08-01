@@ -175,6 +175,28 @@ describe("renderModel", () => {
 
     expect(renderModel(flaky, "mia", "schlafen", "de").available).toBe(false);
   });
+
+  it("reads ageMonths as null, not NaN, when the age entity is itself unavailable", () => {
+    // A bare Number("unavailable") is NaN, and NaN === null is false, so a
+    // template guard written as `ageMonths === null` would let a "· NaN
+    // Monate" header through. Pinned to `toBeNull()` rather than
+    // `toBeFalsy()` or `not.toBeTruthy()` -- both of the latter would also
+    // pass for NaN (NaN is falsy), which is exactly the bug this guards
+    // against.
+    const flakyAge = {
+      states: {
+        "sensor.mia_kleidung_schlafen": hass.states["sensor.mia_kleidung_schlafen"],
+        "sensor.mia_alter": { entity_id: "sensor.mia_alter", state: "unavailable", attributes: {} },
+      },
+      locale: { language: "de" },
+    } as unknown as HomeAssistant;
+
+    const model = renderModel(flakyAge, "mia", "schlafen", "de");
+    expect(model.ageMonths).toBeNull();
+    // The clothing recommendation itself is unaffected by the age sensor's
+    // outage -- the two reads are independent.
+    expect(model.available).toBe(true);
+  });
 });
 
 describe("usesRoomTemperature", () => {

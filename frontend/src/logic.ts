@@ -132,7 +132,15 @@ export function renderModel(
       : undefined;
 
   const ageState = hass.states[ageEntityIdFor(slug)];
-  const ageMonths = ageState ? Number(ageState.state) : null;
+  // Same guard as the clothing entity above: a bare Number(state) on
+  // "unavailable"/"unknown" would be NaN, not null, and NaN !== null would
+  // slip past the header's `ageMonths === null` check and render "NaN
+  // Monate". AgeSensor is hardcoded always-available on the backend (see
+  // sensor.py), so this should not occur in practice, but two sibling reads
+  // guarding the same class of value inconsistently is a trap worth closing
+  // regardless.
+  const ageMonths =
+    ageState && !UNAVAILABLE_STATES.has(ageState.state) ? Number(ageState.state) : null;
 
   if (!recommendation) {
     return {

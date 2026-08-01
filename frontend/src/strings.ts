@@ -6,8 +6,14 @@
 // not: test/strings.test.ts reads both JSON files straight off disk and
 // fails loudly if this file gains, loses or renames a key on either side.
 //
-// `situation`, `info` and `error` are card-only chrome with no backend
-// equivalent to drift against.
+// `situation`, `info`, `error`, `level` and `label` are card-only chrome with
+// no backend equivalent to drift against. `level` in particular translates
+// the backend's raw Level/SleepLevel enum *state* values (e.g. "warm",
+// "tog_2_5") into prose telling a parent what to do ("Warm anziehen") rather
+// than naming the enum -- the backend itself never localises these states
+// (recommendation.py's Level/SleepLevel/UvLevel are German words with no
+// translations.json entry on either side), so there is nothing to drift
+// against and nothing to copy from; this copy was written for the card.
 
 // Forces DE to mirror EN's exact key shape (same nesting, same keys) while
 // letting its string values differ freely. A key EN has and DE lacks, or
@@ -86,6 +92,32 @@ const EN = {
   error: {
     unavailable: "Not available",
   },
+  // Keyed by the backend's raw Level/SleepLevel state values, not by
+  // situation -- the same word ("warm") means the same thing regardless of
+  // which situation produced it. translate()'s existing unknown-key
+  // fallback (return the raw key) is what covers a level state with no
+  // entry here, so no separate fallback logic is needed for that case.
+  level: {
+    hitze: "Dress as lightly as possible",
+    sehr_leicht: "Dress very lightly",
+    leicht: "Dress lightly",
+    mittel: "Dress moderately",
+    warm: "Dress warmly",
+    sehr_warm: "Dress very warmly",
+    winterfest: "Dress for winter",
+    tog_0_5: "Light sleeping bag",
+    tog_1_0: "Medium-light sleeping bag",
+    tog_2_5: "Standard sleeping bag",
+    tog_3_5: "Warm sleeping bag",
+  },
+  // "TOG" and "UV" are identical in both languages -- not an oversight, the
+  // point of routing them through translate() is that every user-facing
+  // string in the template comes from strings.ts, not that the two
+  // languages must differ.
+  label: {
+    tog: "TOG",
+    uv: "UV",
+  },
 } as const;
 
 const DE: Translations<typeof EN> = {
@@ -159,6 +191,23 @@ const DE: Translations<typeof EN> = {
   },
   error: {
     unavailable: "Nicht verfügbar",
+  },
+  level: {
+    hitze: "So leicht wie möglich anziehen",
+    sehr_leicht: "Sehr leicht anziehen",
+    leicht: "Leicht anziehen",
+    mittel: "Mitteldick anziehen",
+    warm: "Warm anziehen",
+    sehr_warm: "Sehr warm anziehen",
+    winterfest: "Winterfest anziehen",
+    tog_0_5: "Dünner Schlafsack",
+    tog_1_0: "Leichter Schlafsack",
+    tog_2_5: "Normaler Schlafsack",
+    tog_3_5: "Dicker Schlafsack",
+  },
+  label: {
+    tog: "TOG",
+    uv: "UV",
   },
 };
 

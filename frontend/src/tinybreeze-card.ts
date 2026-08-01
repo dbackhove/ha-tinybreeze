@@ -144,7 +144,7 @@ class TinybreezeCard extends LitElement {
         </div>
 
         ${this._infoOpen ? this._infoPanel(language) : nothing}
-        ${model?.available ? this._body(model) : this._unavailable(model, language)}
+        ${model?.available ? this._body(model, language) : this._unavailable(model, language)}
       </ha-card>
     `;
   }
@@ -187,15 +187,18 @@ class TinybreezeCard extends LitElement {
     `;
   }
 
-  private _body(model: RenderModel): TemplateResult {
+  private _body(model: RenderModel, language: string): TemplateResult {
     return html`
       ${model.warnings.length ? this._warnings(model.warnings) : nothing}
-      <div class="level">${this._heading(model)}</div>
+      <div class="level">${this._heading(model, language)}</div>
+      ${model.tog !== null
+        ? html`<div class="tog">${translate(language, "label", "tog")} ${model.tog}</div>`
+        : nothing}
       <ul class="outfit">
         ${model.outfit.map((item) => html`<li>${item}</li>`)}
       </ul>
       ${model.hint ? html`<div class="hint">${model.hint}</div>` : nothing}
-      ${this._context(model)}
+      ${this._context(model, language)}
     `;
   }
 
@@ -214,20 +217,16 @@ class TinybreezeCard extends LitElement {
     `;
   }
 
-  private _heading(model: RenderModel): string {
-    // A sleep recommendation is best described by its TOG rating -- that is
-    // the number on the sleeping bag's own label, in either language. Every
-    // other situation falls back to the raw level state (e.g. "warm",
-    // "leicht"); there is no translation for it (see the report: the Level
-    // and UvLevel enums are German words with no localisation on the backend
-    // side either, so the card does not invent one).
-    if (model.tog !== null) {
-      return `TOG ${model.tog}`;
-    }
-    return model.level.length ? model.level[0]!.toUpperCase() + model.level.slice(1) : "";
+  private _heading(model: RenderModel, language: string): string {
+    // The heading tells a parent what to do ("Warm anziehen" / "Standard
+    // sleeping bag"), not which enum value the backend is in -- translate()'s
+    // own unknown-key fallback (return the raw state) covers a level with no
+    // "level" entry, so a future backend level still shows *something*
+    // rather than rendering blank.
+    return translate(language, "level", model.level);
   }
 
-  private _context(model: RenderModel): TemplateResult | typeof nothing {
+  private _context(model: RenderModel, language: string): TemplateResult | typeof nothing {
     if (!this._config || !this._situation) {
       return nothing;
     }
@@ -256,7 +255,7 @@ class TinybreezeCard extends LitElement {
         parts.push(html`
           <span class="context-item">
             <ha-icon icon="mdi:weather-sunny-alert"></ha-icon>
-            UV&nbsp;${uvIndex}
+            ${translate(language, "label", "uv")}&nbsp;${uvIndex}
           </span>
         `);
       }
@@ -329,8 +328,8 @@ class TinybreezeCard extends LitElement {
     }
 
     .chip.selected {
-      background: var(--primary-color);
-      border-color: var(--primary-color);
+      background: var(--primary-color, #03a9f4);
+      border-color: var(--primary-color, #03a9f4);
       color: var(--text-primary-color, #fff);
     }
 
@@ -371,6 +370,11 @@ class TinybreezeCard extends LitElement {
       font-size: 1.1em;
       font-weight: 500;
       color: var(--primary-text-color);
+    }
+
+    .tog {
+      font-size: 0.85em;
+      color: var(--secondary-text-color);
     }
 
     ul.outfit {

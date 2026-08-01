@@ -159,3 +159,46 @@ describe("tinybreeze-card.getStubConfig", () => {
     expect(() => card.setConfig(cardCtor().getStubConfig())).toThrow(/entry/i);
   });
 });
+
+interface HeadingModel {
+  level: string;
+  tog: number | null;
+}
+
+interface CardWithHeading {
+  _heading(model: HeadingModel, language: string): string;
+}
+
+function cardWithHeading(): CardWithHeading {
+  return new (cardCtor())() as unknown as CardWithHeading;
+}
+
+describe("tinybreeze-card heading", () => {
+  // strings.test.ts already pins the full "level" translation table; what is
+  // missing there is proof that the card's heading actually routes through
+  // that category with the right field. A wiring mistake (e.g. reading the
+  // wrong RenderModel field, or translating against "situation" instead of
+  // "level" -- both of which would still type-check, since both categories
+  // take a plain string key) would not be caught by strings.test.ts alone.
+  it("routes the clothing level through the 'level' translation category, in both languages", () => {
+    const card = cardWithHeading();
+    expect(card._heading({ level: "warm", tog: null }, "de")).toBe("Warm anziehen");
+    expect(card._heading({ level: "warm", tog: null }, "en")).toBe("Dress warmly");
+  });
+
+  it("still shows the sleeping-bag heading for a TOG level, not just the detail line", () => {
+    // TOG itself is rendered as a separate detail line by _body, not by
+    // _heading -- this pins that _heading's job is unconditionally the
+    // level lookup, with no special-casing for tog !== null left over from
+    // the pre-fix heading that used to substitute "TOG {n}" in its place.
+    const card = cardWithHeading();
+    expect(card._heading({ level: "tog_2_5", tog: 2.5 }, "de")).toBe("Normaler Schlafsack");
+  });
+
+  it("falls back to the raw level for an unrecognised state, rather than empty text", () => {
+    const card = cardWithHeading();
+    expect(card._heading({ level: "some_future_level", tog: null }, "en")).toBe(
+      "some_future_level",
+    );
+  });
+});
