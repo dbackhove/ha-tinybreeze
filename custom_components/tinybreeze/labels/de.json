@@ -1,0 +1,56 @@
+{
+  "item": {
+    "short_sleeve_body": "Kurzarmbody",
+    "long_sleeve_body": "Langarmbody",
+    "light_long_suit": "Luftiger langärmeliger Einteiler (UPF 30+)",
+    "light_trousers": "Dünne lange Hose",
+    "trousers": "Leichte Hose",
+    "romper": "Strampler",
+    "sweater": "Pullover",
+    "vest": "Dünne Weste oder Jäckchen",
+    "light_jacket": "Leichte Jacke",
+    "fleece_jacket": "Fleece- oder Wollwalkjacke",
+    "fleece_suit": "Fleeceanzug",
+    "winter_jacket": "Winterjacke oder Wollwalkoverall",
+    "winter_suit": "Winteroverall",
+    "pyjamas": "Schlafanzug",
+    "diaper_only": "Nur Windel",
+    "sun_hat": "Sonnenhut mit Nackenschutz",
+    "thin_hat": "Dünne Mütze",
+    "hat": "Mütze",
+    "winter_hat": "Warme Mütze mit Ohrenschutz",
+    "mittens": "Fäustlinge",
+    "scarf": "Halstuch",
+    "barefoot": "Barfuß",
+    "thin_socks": "Dünne Söckchen",
+    "socks": "Socken",
+    "wool_socks": "Dicke Wollsocken",
+    "shoes": "Schuhe",
+    "leg_warmers": "Stulpen",
+    "footmuff": "Fußsack",
+    "rain_cover": "Regenverdeck",
+    "blanket": "Decke"
+  },
+  "warning": {
+    "ueberhitzung": "Wärmer als die empfohlenen 16–20 °C. Auf Überhitzung achten.",
+    "keine_muetze": "Keine Mütze im Bett — Babys geben überschüssige Wärme über den Kopf ab.",
+    "uv": "Sonnenschutz nötig.",
+    "mittagszeit": "Zwischen 11 und 15 Uhr die Sonne meiden.",
+    "autositz": "Keine dicke Jacke im Autositz — der Gurt sitzt sonst zu locker.",
+    "trage_hitze": "In der Trage staut sich Wärme. Nacken regelmäßig prüfen."
+  },
+  "hint": {
+    "carrier_legs": "Beine und Füße liegen frei — Stulpen oder dicke Socken.",
+    "car_seat": "Decke erst nach dem Anschnallen über den Schoß legen.",
+    "stroller_rain_cover": "Ein Regenverdeck staut Wärme. Regelmäßig lüften.",
+    "sleep_no_loose_bedding": "Keine losen Decken, keine Kissen."
+  },
+  "measure": {
+    "shade": "In der Mittagszeit Schatten aufsuchen",
+    "midday_indoors": "Mittagsstunden möglichst drinnen verbringen",
+    "avoid_outdoors": "Aufenthalt im Freien meiden",
+    "uv_clothing": "Schützende Kleidung (UPF 30+)",
+    "sun_hat_with_neck_flap": "Hut mit Schirm und Nackenschutz",
+    "no_direct_sun": "Keine direkte Sonne im ersten Lebensjahr"
+  }
+}

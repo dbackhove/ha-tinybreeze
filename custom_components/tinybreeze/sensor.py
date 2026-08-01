@@ -14,10 +14,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.translation import async_get_translations
 
 from .const import CONF_NAME, CONF_UV_ENTITY, DOMAIN
 from .coordinator import TinybreezeCoordinator
+from .labels import load_labels
 from .recommendation import LEVELS, ROOM_SITUATIONS, Situation, SleepLevel, UvLevel
 
 SITUATION_LABELS: dict[Situation, str] = {
@@ -93,16 +93,16 @@ class ClothingSensor(TinybreezeEntity):
         self._strings: dict[str, str] = {}
 
     async def async_added_to_hass(self) -> None:
-        # Rendered once here rather than per attribute read: a push
+        # Loaded once here rather than per attribute read: a push
         # notification must not contain "long_sleeve_body", and the language
         # cannot change without a restart.
-        self._strings = await async_get_translations(
-            self.hass, self.hass.config.language, "item", {DOMAIN}
+        self._strings = await self.hass.async_add_executor_job(
+            load_labels, self.hass.config.language
         )
         await super().async_added_to_hass()
 
     def _label(self, key: str) -> str:
-        return self._strings.get(f"component.{DOMAIN}.item.{key}", key)
+        return self._strings.get(key, key)
 
     @property
     def available(self) -> bool:

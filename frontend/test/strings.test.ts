@@ -1,10 +1,13 @@
-// Custom cards cannot read Home Assistant's translation files, so
+// Custom cards cannot read the integration's files from the browser, so
 // src/strings.ts carries its own copy of the item, warning, hint and measure
-// strings that already live in
-// custom_components/tinybreeze/translations/{de,en}.json. That duplication
-// is unavoidable, but silent drift is not: this suite reads both JSON files
-// straight off disk and fails loudly the moment a key is renamed, added on
-// one side only, or left orphaned on the card side.
+// strings that already live in custom_components/tinybreeze/labels/{de,en}.json.
+// That duplication is unavoidable, but silent drift is not: this suite reads
+// both JSON files straight off disk and fails loudly the moment a key is
+// renamed, added on one side only, or left orphaned on the card side.
+//
+// Those four categories sit in labels/ rather than in strings.json because
+// Home Assistant validates strings.json against a fixed schema and hassfest
+// rejects any other top-level key.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -15,7 +18,7 @@ import { describe, expect, it } from "vitest";
 import { STRINGS, translate } from "../src/strings";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const TRANSLATIONS_DIR = path.resolve(here, "../../custom_components/tinybreeze/translations");
+const LABELS_DIR = path.resolve(here, "../../custom_components/tinybreeze/labels");
 
 const GUARDED_CATEGORIES = ["item", "warning", "hint", "measure"] as const;
 const LANGUAGES = ["en", "de"] as const;
@@ -23,7 +26,7 @@ const LANGUAGES = ["en", "de"] as const;
 type BackendFile = Record<string, Record<string, string>>;
 
 function loadBackend(language: (typeof LANGUAGES)[number]): BackendFile {
-  const file = path.join(TRANSLATIONS_DIR, `${language}.json`);
+  const file = path.join(LABELS_DIR, `${language}.json`);
   return JSON.parse(readFileSync(file, "utf-8")) as BackendFile;
 }
 

@@ -27,6 +27,10 @@ from custom_components.tinybreeze.const import (
 
 TRANSLATIONS = Path("custom_components/tinybreeze/translations")
 STRINGS = Path("custom_components/tinybreeze/strings.json")
+# Garment names, warnings, hints and measures live outside strings.json:
+# hassfest validates that file against a fixed schema and rejects any
+# top-level key beyond config/options/selector/services.
+LABELS = Path("custom_components/tinybreeze/labels")
 
 # As of this writing recommendation.py defines 30 ITEM_* constants and 16
 # WARNING_*/HINT_*/MEASURE_* ones. These lower bounds are set well below
@@ -66,6 +70,10 @@ def _load(language: str) -> dict:
     return json.loads((TRANSLATIONS / f"{language}.json").read_text(encoding="utf-8"))
 
 
+def _load_labels(language: str) -> dict:
+    return json.loads((LABELS / f"{language}.json").read_text(encoding="utf-8"))
+
+
 def _flatten(data: dict, prefix: str = "") -> set[str]:
     keys: set[str] = set()
     for key, value in data.items():
@@ -88,14 +96,14 @@ def _emitted(*prefixes: str) -> set[str]:
 def test_both_languages_have_the_same_keys() -> None:
     de_keys = _flatten(_load("de"))
     en_keys = _flatten(_load("en"))
-    assert len(de_keys) > 20, "de.json looks empty or barely populated"
+    assert len(de_keys) >= 18, "de.json looks empty or barely populated"
     assert de_keys == en_keys
 
 
 def test_strings_json_matches_english() -> None:
     strings = json.loads(STRINGS.read_text(encoding="utf-8"))
     strings_keys = _flatten(strings)
-    assert len(strings_keys) > 20, "strings.json looks empty or barely populated"
+    assert len(strings_keys) >= 18, "strings.json looks empty or barely populated"
     assert strings_keys == _flatten(_load("en"))
 
 
@@ -106,7 +114,7 @@ def test_every_item_key_is_translated() -> None:
         "constants -- did recommendation.py change shape?"
     )
     for language in ("de", "en"):
-        translated = set(_load(language)["item"])
+        translated = set(_load_labels(language)["item"])
         assert emitted <= translated, f"{language} is missing {emitted - translated}"
 
 
@@ -117,7 +125,7 @@ def test_every_warning_and_hint_is_translated() -> None:
         "WARNING_*/HINT_*/MEASURE_* constants -- did recommendation.py change shape?"
     )
     for language in ("de", "en"):
-        data = _load(language)
+        data = _load_labels(language)
         translated = set(data["warning"]) | set(data["hint"]) | set(data["measure"])
         assert emitted <= translated, f"{language} is missing {emitted - translated}"
 
@@ -132,3 +140,41 @@ def test_every_config_flow_key_is_translated() -> None:
     for language in ("de", "en"):
         keys = _flatten(_load(language))
         assert CONFIG_FLOW_KEYS <= keys, f"{language} is missing {CONFIG_FLOW_KEYS - keys}"
+
+
+def test_strings_json_carries_no_key_hassfest_rejects() -> None:
+    """The regression this file exists to prevent a second time.
+
+    Home Assistant validates strings.json against a fixed schema. Garment
+    names, warnings, hints and measures were originally put there and the
+    integration worked -- `async_get_translations` loaded them happily -- but
+    hassfest rejected the file, which is what HACS and any HA release check
+    runs. They now live in `labels/`.
+    """
+    allowed = {"config", "options", "selector", "services", "entity", "issues", "device"}
+    for path in (STRINGS, TRANSLATIONS / "de.json", TRANSLATIONS / "en.json"):
+        keys = set(json.loads(path.read_text(encoding="utf-8")))
+        assert keys <= allowed, f"{path} has keys hassfest will reject: {keys - allowed}"
+
+
+def test_both_label_files_have_the_same_keys() -> None:
+    assert _flatten(_load_labels("de")) == _flatten(_load_labels("en"))
+
+
+def test_label_keys_are_unique_across_categories() -> None:
+    """`load_labels` flattens the categories into one map, so a key repeated
+    across two of them would silently shadow one of the two."""
+    for language in ("de", "en"):
+        data = _load_labels(language)
+        seen: set[str] = set()
+        for category in ("item", "warning", "hint", "measure"):
+            keys = set(data[category])
+            assert not (keys & seen), f"{language}: {keys & seen} appears in two categories"
+            seen |= keys
+
+
+def test_label_files_are_populated() -> None:
+    """The floor the config-flow files used to carry, moved to where the bulk
+    of the strings actually went."""
+    for language in ("de", "en"):
+        assert len(_flatten(_load_labels(language))) >= 40
