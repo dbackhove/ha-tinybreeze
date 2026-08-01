@@ -6,6 +6,7 @@
 
 import { SITUATIONS } from "./types";
 import type { HomeAssistant, Recommendation, Situation, TinybreezeCardConfig } from "./types";
+import { translate } from "./strings";
 
 export function visibleSituations(candidates: unknown): Situation[] {
   if (!Array.isArray(candidates)) return [...SITUATIONS];
@@ -94,4 +95,95 @@ export function readRecommendation(
 export function cardSize(outfitLength: number): number {
   // Header, chips, context row, plus roughly one grid row per two items.
   return 3 + Math.ceil(outfitLength / 2);
+}
+
+// Mirrors coordinator.py's UNUSABLE_STATES. A clothing sensor whose
+// coordinator has gone unavailable still exists in hass.states -- Home
+// Assistant reports its *state* as "unavailable" (attributes stripped to
+// {} by sensor.py's own extra_state_attributes, which returns {} once the
+// coordinator has no recommendation) rather than removing the entity
+// outright. Checking only "does the entity exist" would miss exactly that
+// case and render an empty outfit list instead of naming the entity.
+const UNAVAILABLE_STATES = new Set(["unavailable", "unknown", ""]);
+
+export interface RenderModel {
+  available: boolean;
+  missing: string | null;
+  level: string;
+  outfit: string[];
+  warnings: string[];
+  hint: string | null;
+  baseTemperature: number | null;
+  tog: number | null;
+  ageMonths: number | null;
+}
+
+export function renderModel(
+  hass: HomeAssistant,
+  slug: string,
+  situation: Situation,
+  language: string,
+): RenderModel {
+  const entityId = entityIdFor(slug, situation);
+  const state = hass.states[entityId];
+  const recommendation =
+    state && !UNAVAILABLE_STATES.has(state.state)
+      ? readRecommendation(hass, slug, situation)
+      : undefined;
+
+  const ageState = hass.states[ageEntityIdFor(slug)];
+  const ageMonths = ageState ? Number(ageState.state) : null;
+
+  if (!recommendation) {
+    return {
+      available: false,
+      missing: entityId,
+      level: "",
+      outfit: [],
+      warnings: [],
+      hint: null,
+      baseTemperature: null,
+      tog: null,
+      ageMonths,
+    };
+  }
+
+  return {
+    available: true,
+    missing: null,
+    level: recommendation.level,
+    // Translated here, from the untranslated outfitKeys, so the template
+    // stays free of lookups and so the card follows the viewing user's own
+    // hass.locale.language rather than the backend's hass.config.language
+    // (see the doc comment on Recommendation.outfitKeys in types.ts).
+    outfit: recommendation.outfitKeys.map((key) => translate(language, "item", key)),
+    warnings: recommendation.warnings.map((key) => translate(language, "warning", key)),
+    hint: recommendation.hint ? translate(language, "hint", recommendation.hint) : null,
+    baseTemperature: recommendation.baseTemperature,
+    tog: recommendation.tog,
+    ageMonths,
+  };
+}
+
+// Mirrors sensor.py's ROOM_SITUATIONS: sleep and home read the room's
+// temperature, the other four read outdoor. Spelled out rather than derived,
+// same as the backend -- a third room-based situation would need both
+// updated by hand either way.
+const ROOM_SITUATIONS: ReadonlySet<Situation> = new Set(["schlafen", "zuhause"]);
+
+export function usesRoomTemperature(situation: Situation): boolean {
+  return ROOM_SITUATIONS.has(situation);
+}
+
+/**
+ * A human-friendly header from the config's slug (e.g. "mia" -> "Mia").
+ * The card config carries only the entity slug, not a separate display
+ * name -- there is nothing else to build a header from.
+ */
+export function displayName(entry: string): string {
+  return entry
+    .split(/[_\s-]+/)
+    .filter((word) => word.length > 0)
+    .map((word) => word[0]!.toUpperCase() + word.slice(1))
+    .join(" ");
 }
