@@ -91,6 +91,7 @@ const EN = {
   },
   error: {
     unavailable: "Not available",
+    uv_unavailable: "No UV data",
   },
   // Keyed by the backend's raw Level/SleepLevel state values, not by
   // situation -- the same word ("warm") means the same thing regardless of
@@ -207,6 +208,7 @@ const DE: Translations<typeof EN> = {
   },
   error: {
     unavailable: "Nicht verfügbar",
+    uv_unavailable: "Keine UV-Daten",
   },
   level: {
     hitze: "So leicht wie möglich anziehen",

@@ -173,6 +173,105 @@ function cardWithHeading(): CardWithHeading {
   return new (cardCtor())() as unknown as CardWithHeading;
 }
 
+interface ContextModel {
+  baseTemperature: number | null;
+  uvUnavailable: boolean;
+}
+
+interface CardWithContext {
+  setConfig(config: unknown): void;
+  hass?: unknown;
+  _context(model: ContextModel, language: string): unknown;
+}
+
+/**
+ * The text of a rendered Lit template, without a DOM.
+ *
+ * A TemplateResult is a plain object of `strings` and `values`, and `values`
+ * may hold further TemplateResults (the context row holds one per item), so
+ * this walks it and collects every literal it would print. Enough to assert
+ * *what* the row says, which is what these tests are about; the arrangement
+ * of it needs a browser and is out of scope here, as the file header says.
+ */
+function renderedText(node: unknown): string {
+  if (node === null || node === undefined) return "";
+  if (Array.isArray(node)) return node.map(renderedText).join(" ");
+  if (typeof node === "object" && "strings" in node && "values" in node) {
+    const template = node as { strings: readonly string[]; values: unknown[] };
+    return [...template.strings, ...template.values.map(renderedText)].join(" ");
+  }
+  return String(node);
+}
+
+function cardWithContext(config: Record<string, unknown>, hass: unknown): CardWithContext {
+  const card = new (cardCtor())() as unknown as CardWithContext;
+  card.setConfig(config);
+  card.hass = hass;
+  return card;
+}
+
+describe("tinybreeze-card context row", () => {
+  const CONFIG = {
+    type: "custom:tinybreeze-card",
+    entry: "mia",
+    situations: ["allgemein"],
+    default_situation: "allgemein",
+  };
+
+  const hassWithUv = {
+    states: {
+      "sensor.mia_uv_schutz": {
+        entity_id: "sensor.mia_uv_schutz",
+        state: "hoch",
+        attributes: { uv_index: 6 },
+      },
+    },
+    locale: { language: "de" },
+  };
+
+  // The UV sensor is unavailable, so Home Assistant has stripped its
+  // attributes -- there is no uv_index to read, and nothing else in the
+  // recommendation differs from a genuinely UV-free day.
+  const hassWithoutUv = {
+    states: {
+      "sensor.mia_uv_schutz": {
+        entity_id: "sensor.mia_uv_schutz",
+        state: "unavailable",
+        attributes: {},
+      },
+    },
+    locale: { language: "de" },
+  };
+
+  it("shows the UV index when there is one", () => {
+    const card = cardWithContext(CONFIG, hassWithUv);
+    const text = renderedText(card._context({ baseTemperature: 10, uvUnavailable: false }, "de"));
+    expect(text).toContain("UV");
+    expect(text).not.toContain("Keine UV-Daten");
+  });
+
+  it("says so, quietly, when a configured UV source has gone dark", () => {
+    const card = cardWithContext(CONFIG, hassWithoutUv);
+    const text = renderedText(card._context({ baseTemperature: 10, uvUnavailable: true }, "de"));
+    expect(text).toContain("Keine UV-Daten");
+    expect(text).toContain("muted");
+  });
+
+  it("stays silent when no UV source is configured at all", () => {
+    // uvUnavailable is false in that case: a card that never wanted UV must
+    // not grow a permanent note about it.
+    const card = cardWithContext(CONFIG, hassWithoutUv);
+    const text = renderedText(card._context({ baseTemperature: 10, uvUnavailable: false }, "de"));
+    expect(text).not.toContain("Keine UV-Daten");
+  });
+
+  it("respects show_uv for the note as well as for the index", () => {
+    const card = cardWithContext({ ...CONFIG, show_uv: false }, hassWithoutUv);
+    const text = renderedText(card._context({ baseTemperature: 10, uvUnavailable: true }, "de"));
+    expect(text).not.toContain("Keine UV-Daten");
+  });
+});
+
 describe("tinybreeze-card heading", () => {
   // strings.test.ts already pins the full "level" translation table; what is
   // missing there is proof that the card's heading actually routes through

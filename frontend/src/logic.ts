@@ -114,6 +114,10 @@ export function readRecommendation(
     hint: (attributes.hint as string | null | undefined) ?? null,
     baseTemperature: asNumberOrNull(attributes.base_temperature),
     tog: asNumberOrNull(attributes.tog),
+    // Strict `=== true`: an absent attribute (an older backend, or a state
+    // that carries no attributes at all) must read as "no outage reported",
+    // never as one.
+    uvUnavailable: attributes.uv_unavailable === true,
   };
 }
 
@@ -141,6 +145,32 @@ export interface RenderModel {
   baseTemperature: number | null;
   tog: number | null;
   ageMonths: number | null;
+  uvUnavailable: boolean;
+}
+
+/**
+ * The source entity that took this situation's sensor down, if the backend
+ * could name one.
+ *
+ * Read from the age sensor rather than the clothing sensor, because Home
+ * Assistant merges extra_state_attributes into a state only while the entity
+ * is available -- the sensor that went dark is exactly the one that cannot
+ * explain itself. The age sensor is available by construction (its value
+ * comes from the birth date alone), so it is the one place per child that can
+ * still carry the answer. Split by domain: outdoor and room sources fail
+ * independently, and naming the wrong one is no better than naming none.
+ */
+function missingSourceEntity(
+  hass: HomeAssistant,
+  slug: string,
+  situation: Situation,
+): string | null {
+  const attributes = hass.states[ageEntityIdFor(slug)]?.attributes;
+  if (!attributes) return null;
+  const value = usesRoomTemperature(situation)
+    ? attributes.missing_room_entity
+    : attributes.missing_outdoor_entity;
+  return typeof value === "string" && value !== "" ? value : null;
 }
 
 export function renderModel(
@@ -170,7 +200,11 @@ export function renderModel(
   if (!recommendation) {
     return {
       available: false,
-      missing: entityId,
+      // The failing *source* if the backend named one, and only then this
+      // card's own entity id -- "not available:
+      // sensor.mia_kleidung_schlafen" tells a user nothing they did not
+      // already know from looking at the blank card.
+      missing: missingSourceEntity(hass, slug, situation) ?? entityId,
       level: "",
       outfit: [],
       warnings: [],
@@ -178,6 +212,7 @@ export function renderModel(
       baseTemperature: null,
       tog: null,
       ageMonths,
+      uvUnavailable: false,
     };
   }
 
@@ -195,6 +230,7 @@ export function renderModel(
     baseTemperature: recommendation.baseTemperature,
     tog: recommendation.tog,
     ageMonths,
+    uvUnavailable: recommendation.uvUnavailable,
   };
 }
 

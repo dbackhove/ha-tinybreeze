@@ -199,6 +199,117 @@ describe("renderModel", () => {
   });
 });
 
+describe("renderModel names the source that failed", () => {
+  // The backend puts these on the age sensor, which is available by
+  // construction: Home Assistant strips extra_state_attributes from an
+  // entity that is unavailable, so the clothing sensor that went dark cannot
+  // name the entity that took it down. See AgeSensor.extra_state_attributes.
+  function hassWith(attributes: Record<string, unknown>): HomeAssistant {
+    return {
+      states: {
+        "sensor.mia_kleidung_schlafen": {
+          entity_id: "sensor.mia_kleidung_schlafen",
+          state: "unavailable",
+          attributes: {},
+        },
+        "sensor.mia_kleidung_kinderwagen": {
+          entity_id: "sensor.mia_kleidung_kinderwagen",
+          state: "unavailable",
+          attributes: {},
+        },
+        "sensor.mia_alter": { entity_id: "sensor.mia_alter", state: "5", attributes },
+      },
+      locale: { language: "de" },
+    } as unknown as HomeAssistant;
+  }
+
+  it("names the weather entity for an outdoor situation", () => {
+    const model = renderModel(
+      hassWith({ missing_outdoor_entity: "weather.home", missing_room_entity: null }),
+      "mia",
+      "kinderwagen",
+      "de",
+    );
+    expect(model.available).toBe(false);
+    expect(model.missing).toBe("weather.home");
+  });
+
+  it("names the room sensor for a room situation", () => {
+    const model = renderModel(
+      hassWith({ missing_outdoor_entity: null, missing_room_entity: "sensor.bedroom" }),
+      "mia",
+      "schlafen",
+      "de",
+    );
+    expect(model.missing).toBe("sensor.bedroom");
+  });
+
+  it("does not name the other domain's entity", () => {
+    // Both halves can be out at once; the card must still report the one
+    // belonging to the chip it is rendering, not whichever came first.
+    const hass = hassWith({
+      missing_outdoor_entity: "weather.home",
+      missing_room_entity: "sensor.bedroom",
+    });
+    expect(renderModel(hass, "mia", "schlafen", "de").missing).toBe("sensor.bedroom");
+    expect(renderModel(hass, "mia", "kinderwagen", "de").missing).toBe("weather.home");
+  });
+
+  it("falls back to the entity id when there is nothing to name", () => {
+    // Room source "entity" with no entity ever chosen: the backend has no
+    // id to report, so the card says which of its own sensors is dark
+    // rather than nothing at all.
+    const model = renderModel(
+      hassWith({ missing_outdoor_entity: null, missing_room_entity: null }),
+      "mia",
+      "schlafen",
+      "de",
+    );
+    expect(model.missing).toBe("sensor.mia_kleidung_schlafen");
+  });
+
+  it("falls back to the entity id when the age sensor is absent entirely", () => {
+    expect(renderModel(hass, "ben", "schlafen", "de").missing).toBe(
+      "sensor.ben_kleidung_schlafen",
+    );
+  });
+});
+
+describe("renderModel carries the UV outage flag", () => {
+  it("is false when the attribute says so", () => {
+    expect(renderModel(hass, "mia", "allgemein", "de").uvUnavailable).toBe(false);
+  });
+
+  it("is true when a configured UV source cannot be read", () => {
+    const noUv = {
+      states: {
+        "sensor.mia_kleidung_allgemein": {
+          entity_id: "sensor.mia_kleidung_allgemein",
+          state: "warm",
+          attributes: {
+            outfit_keys: ["romper"],
+            layers: 1,
+            warnings: [],
+            hint: null,
+            base_temperature: 10,
+            uv_unavailable: true,
+          },
+        },
+      },
+      locale: { language: "de" },
+    } as unknown as HomeAssistant;
+
+    expect(renderModel(noUv, "mia", "allgemein", "de").uvUnavailable).toBe(true);
+  });
+
+  it("is false, not undefined, for a sensor that predates the attribute", () => {
+    // Nothing must be inferred from an absent attribute: the note is only
+    // shown for an outage the backend actually reported.
+    const model = renderModel(hass, "mia", "schlafen", "de");
+    expect(model.uvUnavailable).toBe(false);
+  });
+});
+
 describe("usesRoomTemperature", () => {
   it("is true for sleep and home, the two situations that read the room", () => {
     expect(usesRoomTemperature("schlafen")).toBe(true);

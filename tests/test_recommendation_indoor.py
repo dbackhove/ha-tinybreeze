@@ -8,6 +8,7 @@ from custom_components.tinybreeze.recommendation import (
     ITEM_HAT,
     ITEM_SHOES,
     WARNING_NO_HAT,
+    WARNING_OVERHEATING,
     Level,
     SleepLevel,
     recommend_home,
@@ -90,6 +91,22 @@ def test_home_age_shift_absent_at_or_above_20() -> None:
     newborn = recommend_home(20.0, 2)
     assert older.level == Level.MEDIUM
     assert newborn.level == Level.MEDIUM
+
+
+def test_sleep_warns_about_an_overwarm_room() -> None:
+    assert WARNING_OVERHEATING in recommend_sleep(21.1).warnings
+    assert WARNING_OVERHEATING not in recommend_sleep(21.0).warnings
+
+
+@pytest.mark.parametrize("room_temperature", [21.1, 22.0, 26.0])
+def test_home_does_not_warn_about_an_overwarm_room(room_temperature: float) -> None:
+    # The 16-20 C range comes from BIOEG's *sleep environment* guidance, not
+    # from a general recommendation for living rooms. A 22 C living room in
+    # winter is ordinary, and a warning that is on all season devalues the
+    # same warning where it matters -- on the sleep sensor, where a baby
+    # cannot tell anyone it is too warm.
+    assert WARNING_OVERHEATING not in recommend_home(room_temperature, 6).warnings
+    assert WARNING_OVERHEATING in recommend_sleep(room_temperature).warnings
 
 
 def test_home_never_includes_a_hat_or_shoes() -> None:

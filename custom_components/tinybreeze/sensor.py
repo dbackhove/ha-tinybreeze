@@ -18,7 +18,7 @@ from homeassistant.helpers.translation import async_get_translations
 
 from .const import CONF_NAME, CONF_UV_ENTITY, DOMAIN
 from .coordinator import TinybreezeCoordinator
-from .recommendation import LEVELS, Situation, SleepLevel, UvLevel
+from .recommendation import LEVELS, ROOM_SITUATIONS, Situation, SleepLevel, UvLevel
 
 SITUATION_LABELS: dict[Situation, str] = {
     Situation.STROLLER: "Kleidung Kinderwagen",
@@ -28,11 +28,6 @@ SITUATION_LABELS: dict[Situation, str] = {
     Situation.HOME: "Kleidung Zuhause",
     Situation.GENERAL: "Kleidung Allgemein",
 }
-
-# Sleep and home read room temperature; the other four read outdoor. Used to
-# pick which of the coordinator's two source fields a given situation
-# reports, now that "temperature_source" is no longer a single field.
-ROOM_SITUATIONS: frozenset[Situation] = frozenset({Situation.SLEEP, Situation.HOME})
 
 
 async def async_setup_entry(
@@ -111,7 +106,11 @@ class ClothingSensor(TinybreezeEntity):
 
     @property
     def available(self) -> bool:
-        return self._coordinator.available
+        # Gated on the source this situation actually reads, not on the
+        # coordinator as a whole: a weather outage has nothing to say about
+        # a sleeping child, and with a fixed room range there is no room
+        # source that could fail in the first place.
+        return self._coordinator.available_for(self._situation)
 
     @property
     def native_value(self) -> str | None:
@@ -123,6 +122,11 @@ class ClothingSensor(TinybreezeEntity):
         result = self._coordinator.recommendation(self._situation)
         if result is None:
             return {}
+        # ROOM_SITUATIONS lives in recommendation.py, defined as the
+        # complement of OUTDOOR_SITUATIONS. It decides two things that must
+        # never disagree: which of the coordinator's two source fields this
+        # situation reports, and (in `available` above) which of its two
+        # availability flags gates the entity.
         temperature_source = (
             self._coordinator.room_temperature_source
             if self._situation in ROOM_SITUATIONS
@@ -138,7 +142,13 @@ class ClothingSensor(TinybreezeEntity):
             "warnings": list(result.warnings),
             "base_temperature": result.base_temperature,
             "temperature_source": temperature_source,
+            "weather_condition": self._coordinator.weather_condition,
             "age_months": self._coordinator.age_months,
+            # True only when a UV source is configured and unreadable. The
+            # UV block is skipped silently in that case, so without this the
+            # card would show an ordinary recommendation with no sun
+            # protection and no reason given.
+            "uv_unavailable": self._coordinator.uv_unavailable,
         }
         if result.tog is not None:
             attributes["tog"] = result.tog
@@ -159,7 +169,10 @@ class UvSensor(TinybreezeEntity):
 
     @property
     def available(self) -> bool:
-        return self._coordinator.available and self._coordinator.uv() is not None
+        # Its own rule, and only its own: the UV reading is independent of
+        # both temperatures, so neither a weather nor a room outage says
+        # anything about whether this sensor still knows the UV index.
+        return self._coordinator.uv() is not None
 
     @property
     def native_value(self) -> str | None:
@@ -204,3 +217,23 @@ class AgeSensor(TinybreezeEntity):
     @property
     def native_value(self) -> int:
         return self._coordinator.age_months
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Also the child's one always-readable channel for source outages.
+
+        Home Assistant merges ``extra_state_attributes`` into a state only
+        while the entity is available (see ``Entity.__async_calculate_state``
+        in helpers/entity.py), so an unavailable clothing sensor cannot name
+        the source that took it down -- which left the card reporting its own
+        entity id back at the user ("not available:
+        sensor.mia_kleidung_schlafen"), circular and unactionable. This
+        entity is available by construction, so it is the only place per
+        child that can still say ``weather.home``. Split by source domain
+        because availability is: the card picks the one belonging to the
+        situation it is rendering.
+        """
+        return {
+            "missing_outdoor_entity": self._coordinator.missing_outdoor_entity,
+            "missing_room_entity": self._coordinator.missing_room_entity,
+        }

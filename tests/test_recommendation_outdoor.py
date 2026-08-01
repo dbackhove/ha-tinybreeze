@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from custom_components.tinybreeze.recommendation import (
     ITEM_BLANKET,
+    ITEM_FLEECE_JACKET,
     ITEM_FOOTMUFF,
     ITEM_LEG_WARMERS,
     ITEM_RAIN_COVER,
@@ -28,6 +29,23 @@ def test_newborn_is_dressed_one_bucket_warmer() -> None:
     newborn = recommend_outdoor(Situation.GENERAL, 10.0, 2, "cloudy")
     assert older.level == Level.WARM
     assert newborn.level == Level.VERY_WARM
+
+
+def test_composed_shifts_stop_one_band_above_the_temperature() -> None:
+    # The defect this cap was added for: a two-month-old in a pram at 12.9 C
+    # collected +1 for age and +1 for the stroller and landed on
+    # `winterfest` -- fleece suit, snowsuit, winter hat, mittens, wool socks:
+    # the outfit the table reserves for below 0 C, and identical to what the
+    # same child gets at -10 C. One band above the temperature's own band is
+    # the most any combination of shifts may add.
+    newborn = recommend_outdoor(Situation.STROLLER, 12.9, 2, "cloudy")
+    assert newborn.level == Level.VERY_WARM
+    assert ITEM_WINTER_SUIT not in newborn.outfit
+
+    # The cap bounds the *sum*; it must not flatten a single shift. With only
+    # the age shift in play, the newborn is still dressed a band warmer.
+    assert recommend_outdoor(Situation.GENERAL, 12.9, 6, "cloudy").level == Level.WARM
+    assert recommend_outdoor(Situation.GENERAL, 12.9, 2, "cloudy").level == Level.VERY_WARM
 
 
 def test_shift_clamps_at_the_cold_end() -> None:
@@ -79,6 +97,20 @@ def test_car_never_uses_bulky_clothing_and_adds_a_blanket() -> None:
     assert ITEM_BLANKET in result.outfit
     assert result.level == Level.WARM  # capped at index 4
     assert WARNING_CAR_SEAT in result.warnings
+
+
+def test_car_warns_from_the_capped_index_itself_not_only_above_it() -> None:
+    # The spec's warnings table says "index >= 4 before capping". Index 4 is
+    # the fleece-jacket band (8-12 C), which is exactly the range where a
+    # parent reaches for a padded jacket -- so the warning has to be there,
+    # even though capping at 4 has nothing left to remove.
+    result = recommend_outdoor(Situation.CAR, 8.0, 6, "cloudy")
+    assert result.level == Level.WARM
+    assert ITEM_FLEECE_JACKET in result.outfit
+    assert WARNING_CAR_SEAT in result.warnings
+
+    # One band warmer, and there is genuinely nothing to warn about.
+    assert WARNING_CAR_SEAT not in recommend_outdoor(Situation.CAR, 13.0, 6, "cloudy").warnings
 
 
 def test_layers_are_counted() -> None:

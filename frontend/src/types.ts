@@ -60,4 +60,12 @@ export interface Recommendation {
   hint: string | null;
   baseTemperature: number | null;
   tog: number | null;
+  /**
+   * A UV source is configured but currently unreadable. The backend skips
+   * the whole UV block in that case, so nothing else in this object would
+   * differ from a genuinely UV-free day -- which is precisely why the flag
+   * exists. It is never turned into a warning: a missing reading is not
+   * evidence of sun.
+   */
+  uvUnavailable: boolean;
 }

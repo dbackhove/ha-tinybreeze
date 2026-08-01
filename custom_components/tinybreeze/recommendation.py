@@ -70,8 +70,8 @@ ITEM_RAIN_COVER = "rain_cover"
 ITEM_BLANKET = "blanket"
 
 # Only these count towards `layers`. A hat is warmth, but it is not a layer
-# in the onion-principle sense, and counting it would make the number useless
-# for comparing two recommendations.
+# in the onion-principle sense, and counting it would blur the number the
+# onion principle is actually about.
 LAYER_ITEMS: frozenset[str] = frozenset(
     {
         ITEM_SHORT_SLEEVE_BODY,
@@ -163,7 +163,17 @@ def bucket_index(temperature: float) -> int:
 
 
 def count_layers(outfit: tuple[str, ...]) -> int:
-    """How many actual clothing layers an outfit has, accessories excluded."""
+    """How many actual clothing layers an outfit has, accessories excluded.
+
+    Comparable *within* a temperature band -- across two ages or two
+    situations at the same temperature -- but not across bands. BASE_TABLE
+    row 4 swaps `sweater` + `light_jacket` for a single `fleece_jacket`, so a
+    colder row can carry fewer garments while being warmer: at 13 C a
+    six-month-old gets 4 layers and a two-month-old, dressed a band warmer,
+    gets 3. Warmth is what the level says; `layers` counts garments. Reading
+    it as an ordering across bands is a mistake the table's own shape makes
+    easy, which is why it is written down here.
+    """
     return sum(1 for item in outfit if item in LAYER_ITEMS)
 
 
@@ -204,8 +214,13 @@ OUTDOOR_ONLY: frozenset[str] = frozenset(
     }
 )
 
-# Bulk that must not go into a car seat.
-CAR_FORBIDDEN: frozenset[str] = frozenset({ITEM_WINTER_JACKET, ITEM_WINTER_SUIT})
+# Padded outerwear, removed for both the car seat and the carrier. Two
+# different reasons -- a harness cannot sit tight over it, and it forces a
+# carried child's legs out of the spread-squat position -- but the same
+# garments, so one set serves both. Named for what it contains rather than
+# for either rule: a name that says "car" needs a footnote the moment the
+# carrier uses it, and safety-relevant code should not need footnotes.
+BULKY_OUTERWEAR: frozenset[str] = frozenset({ITEM_WINTER_JACKET, ITEM_WINTER_SUIT})
 
 # Warning keys. Translated in sensor.py and in the card, never here.
 WARNING_CAR_SEAT = "autositz"
@@ -260,6 +275,35 @@ def _clamp(index: int) -> int:
     return max(0, min(MAX_INDEX, index))
 
 
+# How far above the temperature's own band the shifts may push the result,
+# no matter how many of them apply.
+MAX_SHIFT_ABOVE_BUCKET = 1
+
+
+def at_most_one_band_warmer(bucket: int, *shifts: int) -> int:
+    """Compose shifts onto a bucket index, bounded one band above it.
+
+    The invariant, stated here because it is the one place that can state it:
+    the returned index is never greater than ``bucket +
+    MAX_SHIFT_ABOVE_BUCKET``, and always a valid index into ``BASE_TABLE``.
+
+    The shifts add, and adding them without a bound is a safety defect, not a
+    rounding detail. A two-month-old in a stroller at 12.9 C collected +1 for
+    age and +1 for the stroller and came out at `winterfest` -- fleece suit,
+    snowsuit, winter hat with ear flaps, mittens, wool socks: the outfit the
+    table reserves for below 0 C, identical to what the same child gets at
+    -10 C. Below 10 C a footmuff went on top of that, and in rain a rain
+    cover on top of that again, which the stroller's own hint warns traps
+    heat. That errs towards overheating, and overheating is the direction a
+    baby cannot signal (see the spec's note on the warning).
+
+    Shifting downwards stays unbounded: the carrier's -1 is the wearer's body
+    heat genuinely replacing a layer, and erring light there is the direction
+    a child protests about.
+    """
+    return _clamp(min(bucket + MAX_SHIFT_ABOVE_BUCKET, bucket + sum(shifts)))
+
+
 def recommend_outdoor(
     situation: Situation,
     temperature: float,
@@ -271,13 +315,18 @@ def recommend_outdoor(
     `Situation.HOME` and `Situation.SLEEP` are handled elsewhere: they read
     room temperature and drop or replace the outdoor half of the table.
     """
-    index = bucket_index(temperature)
-    index += age_shift(age_months, temperature)
-    index += situation_shift(situation, temperature)
-    index = _clamp(index)
+    index = at_most_one_band_warmer(
+        bucket_index(temperature),
+        age_shift(age_months, temperature),
+        situation_shift(situation, temperature),
+    )
 
     warnings: list[str] = []
-    if situation is Situation.CAR and index > CAR_MAX_INDEX:
+    # ">=", not ">": the spec's warnings table warns from index 4 -- the
+    # fleece-jacket band, 8-12 C -- because that is already the range where a
+    # parent reaches for a padded jacket. Capping at 4 then has nothing left
+    # to do, but the warning is the point, not the capping.
+    if situation is Situation.CAR and index >= CAR_MAX_INDEX:
         warnings.append(WARNING_CAR_SEAT)
         index = CAR_MAX_INDEX
 
@@ -293,15 +342,14 @@ def recommend_outdoor(
             hint = HINT_STROLLER_RAIN
 
     elif situation is Situation.CARRIER:
-        # A thick jacket also compromises the spread-squat position.
-        outfit = [item for item in outfit if item not in CAR_FORBIDDEN]
+        outfit = [item for item in outfit if item not in BULKY_OUTERWEAR]
         outfit.append(ITEM_LEG_WARMERS)
         hint = HINT_CARRIER
         if temperature >= CARRIER_HEAT_TEMPERATURE:
             warnings.append(WARNING_CARRIER_HEAT)
 
     elif situation is Situation.CAR:
-        outfit = [item for item in outfit if item not in CAR_FORBIDDEN]
+        outfit = [item for item in outfit if item not in BULKY_OUTERWEAR]
         outfit.append(ITEM_BLANKET)
         hint = HINT_CAR
 
@@ -349,6 +397,10 @@ def recommend_sleep(room_temperature: float) -> Recommendation:
 
     warnings = [WARNING_NO_HAT]
     if room_temperature > ROOM_TEMPERATURE_WARN_ABOVE:
+        # Sleep only. The 16-20 C range this threshold comes from is BIOEG's
+        # *sleep environment* guidance, not a general recommendation for
+        # rooms, so it does not bind a waking child in a living room -- see
+        # recommend_home, which deliberately does not carry this warning.
         warnings.append(WARNING_OVERHEATING)
 
     return Recommendation(
@@ -392,19 +444,23 @@ def recommend_home(room_temperature: float, age_months: int) -> Recommendation:
         if room_temperature >= lower:
             break
 
+    # One shift, so this is already within a band of the room's own row; the
+    # cap the outdoor table needs (at_most_one_band_warmer) has nothing to
+    # bound here.
     index = min(HOME_MAX_INDEX, index + age_shift(age_months, room_temperature))
     _, level, outfit = HOME_TABLE[index]
 
-    warnings: list[str] = []
-    if room_temperature > ROOM_TEMPERATURE_WARN_ABOVE:
-        warnings.append(WARNING_OVERHEATING)
-
+    # No overheating warning here on purpose. ROOM_TEMPERATURE_WARN_ABOVE is
+    # derived from the recommended *sleeping* range; a 22 C living room in
+    # winter is ordinary, and a chip that carries a red warning all season
+    # long devalues the same warning on the sleep chip, which is where a
+    # baby's inability to signal overheating actually bites.
     return Recommendation(
         level=level,
         outfit=outfit,
         layers=count_layers(outfit),
         hint=None,
-        warnings=tuple(warnings),
+        warnings=(),
         base_temperature=room_temperature,
     )
 
@@ -493,15 +549,18 @@ def uv_advice(uv_index: float, age_months: int, hour: int) -> UvAdvice:
     )
 
 
-OUTDOOR_SITUATIONS: frozenset[Situation] = frozenset(
-    {Situation.STROLLER, Situation.CARRIER, Situation.CAR, Situation.GENERAL}
-)
+# Which of the two temperatures a situation reads. Written as complements so
+# that a seventh situation cannot fall into neither set: sensor.py gates
+# availability on exactly this split, and a situation in neither would be
+# gated on nothing at all.
+ROOM_SITUATIONS: frozenset[Situation] = frozenset({Situation.SLEEP, Situation.HOME})
+OUTDOOR_SITUATIONS: frozenset[Situation] = frozenset(Situation) - ROOM_SITUATIONS
 
 
 def recommend(
     situation: Situation,
-    outdoor_temperature: float,
-    room_temperature: float,
+    outdoor_temperature: float | None,
+    room_temperature: float | None,
     age_months: int,
     weather_condition: str,
     uv_index: float | None,
@@ -512,11 +571,24 @@ def recommend(
     Routes to the right rule set and folds UV warnings into the outdoor ones.
     Sun exposure is not a thing that happens in a cot, so indoor situations
     never carry UV warnings.
+
+    Only the temperature this situation actually reads has to be present. The
+    weather entity and the room sensor fail independently, and a sleeping
+    child's recommendation must not go dark because the outdoor forecast did
+    -- so the unread one may be None. The one that *is* read may not be:
+    passing None there is a caller bug, and a ValueError says so at the point
+    it happens rather than surfacing as a TypeError inside a comparison two
+    frames down.
     """
-    if situation is Situation.SLEEP:
-        return recommend_sleep(room_temperature)
-    if situation is Situation.HOME:
+    if situation in ROOM_SITUATIONS:
+        if room_temperature is None:
+            raise ValueError(f"{situation} needs a room temperature")
+        if situation is Situation.SLEEP:
+            return recommend_sleep(room_temperature)
         return recommend_home(room_temperature, age_months)
+
+    if outdoor_temperature is None:
+        raise ValueError(f"{situation} needs an outdoor temperature")
 
     result = recommend_outdoor(situation, outdoor_temperature, age_months, weather_condition)
 

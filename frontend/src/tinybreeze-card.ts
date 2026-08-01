@@ -259,6 +259,17 @@ class TinybreezeCard extends LitElement {
             ${translate(language, "label", "uv")}&nbsp;${uvIndex}
           </span>
         `);
+      } else if (model.uvUnavailable) {
+        // A configured UV source that has stopped reporting. Said plainly
+        // and quietly: the backend deliberately fabricates no UV warning
+        // from a missing reading, so the honest statement is that the data
+        // is gone, not that the sun is dangerous.
+        parts.push(html`
+          <span class="context-item muted">
+            <ha-icon icon="mdi:weather-sunny-alert"></ha-icon>
+            ${translate(language, "error", "uv_unavailable")}
+          </span>
+        `);
       }
     }
 
@@ -420,6 +431,11 @@ class TinybreezeCard extends LitElement {
 
     .context-item ha-icon {
       --mdc-icon-size: 16px;
+    }
+
+    .context-item.muted {
+      font-style: italic;
+      opacity: 0.75;
     }
 
     .notice {

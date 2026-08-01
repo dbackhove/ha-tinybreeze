@@ -14,10 +14,11 @@ Tinybreeze produces a separate recommendation for each of six everyday
 situations, because the same weather calls for different clothing depending
 on what the baby is actually doing:
 
-- **Stroller** — wrapped a little warmer, since a stroller doesn't move the
-  child's own muscles and generates no warmth of its own; a footmuff joins
-  below 10 °C, and a rain cover in the rain comes with a warning about the
-  heat it traps.
+- **Stroller** — wrapped one band warmer **below 15 °C**, since a child being
+  pushed moves no muscles of its own and generates no warmth from them; above
+  that it is dressed like any other outdoor situation. A footmuff joins below
+  10 °C, and a rain cover in the rain comes with a warning about the heat it
+  traps.
 - **Carrier** — one layer lighter on the torso, since the wearer's own body
   heat replaces it; legs and feet are left exposed by the carrier and need
   their own socks or leg warmers, and no thick jacket, because it would
@@ -103,8 +104,18 @@ attributes:
 | `warnings` | Whichever warnings apply right now — car seat, overheating, UV, midday sun, and so on |
 | `base_temperature` | The temperature the recommendation was computed from |
 | `temperature_source` | `apparent`, `measured`, or `manual_range` |
+| `weather_condition` | The weather entity's own state (`cloudy`, `rainy`, …) |
 | `age_months` | The child's age at the time of the calculation |
+| `uv_unavailable` | `true` when a UV source is configured but cannot be read right now |
 | `tog` | Sleeping-bag TOG rating — sleep sensor only |
+
+Outdoor and room sources are tracked separately, so an outage only takes down
+the sensors that read the failed source: a weather entity going `unavailable`
+leaves the sleep and home recommendations alone, and a room sensor going
+`unavailable` leaves the stroller, carrier, car and general ones alone. The
+age sensor stays available throughout, and carries `missing_outdoor_entity`
+and `missing_room_entity` so the card can name the entity that actually
+failed.
 
 Automations should read `outfit_text` rather than the state, since the state
 is deliberately terse:
@@ -208,6 +219,12 @@ situations and the age bands, rather than a source for any particular number.
 The TOG table, the UV bands, the age thresholds for sun exposure and
 sunscreen, and the car-seat rule above are all grounded in the sources listed
 above.
+
+So is the rule that **age and situation together may add at most one band**
+to what the temperature alone calls for. Without that bound the two
+adjustments simply added up, and a two-month-old in a pram at 12.9 °C came
+out dressed for below freezing. The bound itself is a judgement call; the
+direction is not, since a baby who is too warm gives no sign of it.
 
 The **outdoor temperature-to-clothing table is not.** No official body
 publishes a table mapping outdoor temperature directly to baby garments. That
