@@ -57,6 +57,31 @@ export function uvEntityIdFor(slug: string): string {
   return `sensor.${slug}_uv_schutz`;
 }
 
+// Matches the entity built by entityIdFor(slug, "allgemein") -- every child
+// publishes this one regardless of which situations are enabled, so it is a
+// reliable anchor for "does this slug exist" without a config-entry lookup.
+const CHILD_ENTITY_PATTERN = /^sensor\.(.+)_kleidung_allgemein$/;
+
+/**
+ * Discovers which children exist by scanning hass.states for the
+ * `sensor.<slug>_kleidung_allgemein` entity every child publishes. Used by
+ * the editor to offer a dropdown of known slugs instead of free text, where
+ * a typo would silently produce an unrenderable card.
+ *
+ * Returned sorted, not in hass.states' own (unspecified) key order, so the
+ * dropdown a user sees is stable across reloads.
+ */
+export function discoverChildSlugs(hass: HomeAssistant): string[] {
+  const slugs = new Set<string>();
+  for (const entityId of Object.keys(hass.states)) {
+    const match = CHILD_ENTITY_PATTERN.exec(entityId);
+    if (match) {
+      slugs.add(match[1]!);
+    }
+  }
+  return [...slugs].sort();
+}
+
 export function ageEntityIdFor(slug: string): string {
   return `sensor.${slug}_alter`;
 }

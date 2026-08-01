@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   ageEntityIdFor,
   cardSize,
+  discoverChildSlugs,
   entityIdFor,
   parseConfig,
   readRecommendation,
@@ -221,6 +222,70 @@ describe("cardSize", () => {
 
   it("grows with the outfit", () => {
     expect(cardSize(3)).toBeGreaterThan(cardSize(1));
+  });
+});
+
+describe("discoverChildSlugs", () => {
+  it("finds every child from its sensor.<slug>_kleidung_allgemein entity", () => {
+    const multiChild = {
+      states: {
+        "sensor.mia_kleidung_allgemein": {
+          entity_id: "sensor.mia_kleidung_allgemein",
+          state: "warm",
+          attributes: {},
+        },
+        "sensor.ben_kleidung_allgemein": {
+          entity_id: "sensor.ben_kleidung_allgemein",
+          state: "leicht",
+          attributes: {},
+        },
+      },
+      locale: { language: "de" },
+    } as unknown as HomeAssistant;
+
+    // Sorted, not insertion order -- a dropdown built straight off object key
+    // order would reshuffle every time hass.states happens to enumerate
+    // differently, which is not something a config editor should do.
+    expect(discoverChildSlugs(multiChild)).toEqual(["ben", "mia"]);
+  });
+
+  it("ignores entities that are not the allgemein clothing sensor", () => {
+    // A naive substring match on "_kleidung_" would also pick up the sleep
+    // sensor, the UV sensor and the age sensor below -- each is a real
+    // per-child entity that must NOT contribute a spurious duplicate or a
+    // wrong slug.
+    const mixed = {
+      states: {
+        "sensor.mia_kleidung_allgemein": {
+          entity_id: "sensor.mia_kleidung_allgemein",
+          state: "warm",
+          attributes: {},
+        },
+        "sensor.mia_kleidung_schlafen": {
+          entity_id: "sensor.mia_kleidung_schlafen",
+          state: "tog_2_5",
+          attributes: {},
+        },
+        "sensor.mia_uv_schutz": {
+          entity_id: "sensor.mia_uv_schutz",
+          state: "3",
+          attributes: {},
+        },
+        "sensor.mia_alter": { entity_id: "sensor.mia_alter", state: "5", attributes: {} },
+        "weather.home": { entity_id: "weather.home", state: "sunny", attributes: {} },
+      },
+      locale: { language: "de" },
+    } as unknown as HomeAssistant;
+
+    expect(discoverChildSlugs(mixed)).toEqual(["mia"]);
+  });
+
+  it("falls back to an empty list when no child entity exists yet", () => {
+    // A fresh install, or a hass whose states have not populated -- the
+    // editor is what turns this into a text-field fallback, but the helper
+    // itself just reports "none found" rather than guessing.
+    const empty = { states: {}, locale: { language: "de" } } as unknown as HomeAssistant;
+    expect(discoverChildSlugs(empty)).toEqual([]);
   });
 });
 

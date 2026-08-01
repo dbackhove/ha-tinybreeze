@@ -20,6 +20,7 @@
 
 import { LitElement, css, html, nothing, type TemplateResult } from "lit";
 
+import "./editor";
 import {
   ageEntityIdFor,
   cardSize,
