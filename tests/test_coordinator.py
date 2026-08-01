@@ -77,6 +77,34 @@ async def test_temperature_sources_are_independent(hass: HomeAssistant) -> None:
     assert coordinator.room_temperature_source == "manual_range"
 
 
+async def test_outdoor_source_does_not_go_stale_when_weather_becomes_unavailable(
+    hass: HomeAssistant,
+) -> None:
+    """Every path out of ``_read_outdoor`` must set the source, not just the
+    two successful ones.
+
+    Regression test: an earlier version only assigned
+    ``outdoor_temperature_source`` on the apparent/measured success paths, so
+    a weather entity that went unavailable after a good reading kept
+    reporting the provenance of that last good reading instead of admitting
+    it no longer knows.
+    """
+    hass.states.async_set(
+        "weather.home", "cloudy", {"temperature": 10.0, "apparent_temperature": 4.0}
+    )
+    entry = _entry(hass, **{CONF_ROOM_SOURCE: ROOM_SOURCE_RANGE, CONF_ROOM_RANGE: "18_19"})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = hass.data[DOMAIN][entry.entry_id].coordinator
+    assert coordinator.outdoor_temperature_source == "apparent"
+
+    hass.states.async_set("weather.home", "unavailable")
+    await hass.async_block_till_done()
+
+    assert coordinator.outdoor_temperature_source == "unknown"
+
+
 async def test_room_entity_source_is_reported_as_measured(hass: HomeAssistant) -> None:
     hass.states.async_set("weather.home", "cloudy", {"temperature": 10.0})
     hass.states.async_set("sensor.bedroom", "19.0")
@@ -214,6 +242,31 @@ async def test_add_listener_returns_a_working_remove_callback(hass: HomeAssistan
 
     remove()
     coordinator.async_recompute()
+    assert calls == [1]
+
+
+async def test_a_raising_listener_does_not_block_the_others(hass: HomeAssistant) -> None:
+    """One misbehaving sensor must not leave the rest stale.
+
+    Mirrors ha-pareto's coordinator, which wraps each listener call so a
+    single bad one cannot stop the loop before it reaches the others.
+    """
+    hass.states.async_set("weather.home", "cloudy", {"temperature": 10.0})
+    entry = _entry(hass, **{CONF_ROOM_SOURCE: ROOM_SOURCE_RANGE, CONF_ROOM_RANGE: "18_19"})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = hass.data[DOMAIN][entry.entry_id].coordinator
+    calls: list[int] = []
+
+    def _raises() -> None:
+        raise RuntimeError("boom")
+
+    coordinator.async_add_listener(_raises)
+    coordinator.async_add_listener(lambda: calls.append(1))
+
+    coordinator.async_recompute()
+
     assert calls == [1]
 
 

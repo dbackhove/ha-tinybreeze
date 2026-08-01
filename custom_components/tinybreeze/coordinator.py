@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import date
+from datetime import date, datetime
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
@@ -36,6 +36,11 @@ UNUSABLE_STATES = {"unavailable", "unknown", ""}
 SOURCE_APPARENT = "apparent"
 SOURCE_MEASURED = "measured"
 SOURCE_MANUAL = "manual_range"
+# Neither "apparent" nor "measured" is true: no reading was taken this pass,
+# so neither field would be honest. Used only by outdoor_temperature_source
+# -- room's source depends solely on config, never on whether the read
+# succeeded, so it never needs it.
+SOURCE_UNKNOWN = "unknown"
 
 
 def months_between(birth_date: date, today: date) -> int:
@@ -64,7 +69,7 @@ class TinybreezeCoordinator:
         # Outdoor and room temperature come from independent sources and must
         # be tracked independently: whichever field ran last would otherwise
         # clobber the other, mislabeling every sensor that reads it.
-        self.outdoor_temperature_source: str = SOURCE_MEASURED
+        self.outdoor_temperature_source: str = SOURCE_UNKNOWN
         self.room_temperature_source: str = SOURCE_MEASURED
 
         # Separate from missing_entity on purpose: missing_entity is only a
@@ -140,7 +145,7 @@ class TinybreezeCoordinator:
         self.async_recompute()
 
     @callback
-    def _handle_midnight(self, now) -> None:
+    def _handle_midnight(self, now: datetime) -> None:
         self.async_recompute()
 
     def _read_number(self, entity_id: str | None) -> float | None:
@@ -155,12 +160,20 @@ class TinybreezeCoordinator:
             return None
 
     def _read_outdoor(self) -> tuple[float | None, str]:
-        """Apparent temperature if the weather entity offers one, else plain."""
+        """Apparent temperature if the weather entity offers one, else plain.
+
+        Assigns ``outdoor_temperature_source`` on every path out, including
+        the failure ones -- otherwise a weather entity that later becomes
+        unavailable would keep reporting the provenance of its last good
+        reading instead of admitting it no longer knows.
+        """
         entity_id = self.entry.options.get(CONF_WEATHER_ENTITY)
         if not entity_id:
+            self.outdoor_temperature_source = SOURCE_UNKNOWN
             return None, "unknown"
         state = self.hass.states.get(entity_id)
         if state is None or state.state in UNUSABLE_STATES:
+            self.outdoor_temperature_source = SOURCE_UNKNOWN
             return None, "unknown"
 
         apparent = state.attributes.get("apparent_temperature")
@@ -234,4 +247,7 @@ class TinybreezeCoordinator:
     @callback
     def _notify(self) -> None:
         for listener in list(self._listeners):
-            listener()
+            try:
+                listener()
+            except Exception:  # one bad sensor must not block the rest
+                _LOGGER.exception("Tinybreeze listener raised during update")
