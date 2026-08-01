@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.translation import async_get_translations
 
 from .const import CONF_NAME, CONF_UV_ENTITY, DOMAIN
 from .coordinator import TinybreezeCoordinator
@@ -94,6 +95,19 @@ class ClothingSensor(TinybreezeEntity):
             if situation is Situation.SLEEP
             else [str(level) for level in LEVELS]
         )
+        self._strings: dict[str, str] = {}
+
+    async def async_added_to_hass(self) -> None:
+        # Rendered once here rather than per attribute read: a push
+        # notification must not contain "long_sleeve_body", and the language
+        # cannot change without a restart.
+        self._strings = await async_get_translations(
+            self.hass, self.hass.config.language, "item", {DOMAIN}
+        )
+        await super().async_added_to_hass()
+
+    def _label(self, key: str) -> str:
+        return self._strings.get(f"component.{DOMAIN}.item.{key}", key)
 
     @property
     def available(self) -> bool:
@@ -114,8 +128,11 @@ class ClothingSensor(TinybreezeEntity):
             if self._situation in ROOM_SITUATIONS
             else self._coordinator.outdoor_temperature_source
         )
+        outfit = [self._label(key) for key in result.outfit]
         attributes: dict[str, Any] = {
             "outfit_keys": list(result.outfit),
+            "outfit": outfit,
+            "outfit_text": ", ".join(outfit),
             "layers": result.layers,
             "hint": result.hint,
             "warnings": list(result.warnings),

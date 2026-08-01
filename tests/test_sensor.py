@@ -133,6 +133,29 @@ async def test_entities_go_unavailable_when_the_source_does(hass: HomeAssistant)
     assert state.state == "unavailable"
 
 
+async def test_outfit_attributes_render_english_labels_by_default(hass: HomeAssistant) -> None:
+    await _setup(hass)
+    state = hass.states.get("sensor.mia_kleidung_allgemein")
+    assert state.attributes["outfit"]
+    assert "long_sleeve_body" not in state.attributes["outfit_text"]
+    assert "Long-sleeve bodysuit" in state.attributes["outfit"]
+    assert state.attributes["outfit_text"] == ", ".join(state.attributes["outfit"])
+
+
+async def test_outfit_text_is_rendered_in_german_when_configured(hass: HomeAssistant) -> None:
+    """A push notification containing 'long_sleeve_body' would be worse than
+    no notification, so this must fail loudly if the translation category
+    used by the sensor silently fails to load and `_label` falls back to
+    the raw key for every item.
+    """
+    hass.config.language = "de"
+    await _setup(hass)
+    state = hass.states.get("sensor.mia_kleidung_allgemein")
+    assert "long_sleeve_body" not in state.attributes["outfit_text"]
+    assert "Langarmbody" in state.attributes["outfit_text"]
+    assert "Strampler" in state.attributes["outfit_text"]
+
+
 async def test_age_sensor_stays_available_when_the_source_does_not(hass: HomeAssistant) -> None:
     """Age is derived from the birth date alone and recomputed on every read,
     so it owes nothing to the weather or room entities that gate
