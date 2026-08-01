@@ -1,0 +1,10 @@
+pytest
+pytest-homeassistant-custom-component
+freezegun
+ruff
+
+# Tinybreeze declares `frontend` as a dependency because it serves the card and
+# calls add_extra_js_url, which writes into data that only the frontend
+# component's own setup creates. Deliberately unpinned: only `import
+# hass_frontend` has to succeed.
+home-assistant-frontend

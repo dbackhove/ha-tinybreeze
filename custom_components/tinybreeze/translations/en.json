@@ -1,0 +1,106 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add child",
+        "data": {
+          "name": "Name",
+          "birth_date": "Date of birth"
+        }
+      }
+    },
+    "error": {
+      "birth_date_in_future": "The date of birth is in the future.",
+      "invalid_date": "Not a valid date."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Data sources",
+        "data": {
+          "weather_entity": "Weather entity",
+          "uv_entity": "UV index sensor (optional)",
+          "room_source": "Room temperature",
+          "room_entity": "Room temperature sensor",
+          "room_range": "Fixed range"
+        }
+      }
+    },
+    "error": {
+      "room_entity_required": "No room temperature sensor selected."
+    }
+  },
+  "selector": {
+    "room_source": {
+      "options": {
+        "entity": "Use a sensor",
+        "range": "Enter a fixed range"
+      }
+    },
+    "room_range": {
+      "options": {
+        "16_17": "16–17 °C",
+        "18_19": "18–19 °C",
+        "20_21": "20–21 °C",
+        "22_23": "22–23 °C",
+        "24_25": "24–25 °C",
+        "26_plus": "26 °C and above"
+      }
+    }
+  },
+  "item": {
+    "short_sleeve_body": "Short-sleeve bodysuit",
+    "long_sleeve_body": "Long-sleeve bodysuit",
+    "light_long_suit": "Lightweight long-sleeve sun suit (UPF 30+)",
+    "light_trousers": "Thin long trousers",
+    "trousers": "Light trousers",
+    "romper": "Romper",
+    "sweater": "Sweater",
+    "vest": "Thin vest or light cardigan",
+    "light_jacket": "Light jacket",
+    "fleece_jacket": "Fleece or boiled-wool jacket",
+    "fleece_suit": "Fleece suit",
+    "winter_jacket": "Winter jacket or boiled-wool overall",
+    "winter_suit": "Snowsuit",
+    "pyjamas": "Pyjamas",
+    "diaper_only": "Diaper only",
+    "sun_hat": "Sun hat with neck flap",
+    "thin_hat": "Thin hat",
+    "hat": "Hat",
+    "winter_hat": "Warm hat with ear flaps",
+    "mittens": "Mittens",
+    "scarf": "Neck scarf",
+    "barefoot": "Bare feet",
+    "thin_socks": "Thin socks",
+    "socks": "Socks",
+    "wool_socks": "Thick wool socks",
+    "shoes": "Shoes",
+    "leg_warmers": "Leg warmers",
+    "footmuff": "Footmuff",
+    "rain_cover": "Rain cover",
+    "blanket": "Blanket"
+  },
+  "warning": {
+    "ueberhitzung": "Warmer than the recommended 16–20 °C. Watch for overheating.",
+    "keine_muetze": "No hat in bed — babies release excess heat through the head.",
+    "uv": "Sun protection needed.",
+    "mittagszeit": "Avoid the sun between 11am and 3pm.",
+    "autositz": "No bulky jacket in the car seat — the harness would sit too loose.",
+    "trage_hitze": "Heat builds up in a carrier. Check the neck regularly."
+  },
+  "hint": {
+    "carrier_legs": "Legs and feet are exposed — use leg warmers or thick socks.",
+    "car_seat": "Add the blanket over the lap only after buckling the harness.",
+    "stroller_rain_cover": "A rain cover traps heat. Ventilate regularly.",
+    "sleep_no_loose_bedding": "No loose blankets, no pillows."
+  },
+  "measure": {
+    "shade": "Seek shade around midday",
+    "midday_indoors": "Spend the midday hours indoors where possible",
+    "avoid_outdoors": "Avoid time outdoors",
+    "uv_clothing": "Protective clothing (UPF 30+)",
+    "sun_hat_with_neck_flap": "Hat with brim and neck flap",
+    "no_direct_sun": "No direct sun in the first year of life"
+  }
+}

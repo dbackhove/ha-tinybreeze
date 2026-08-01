@@ -62,9 +62,11 @@ Options Flow die Quellen:
   rechnet das Regelwerk mit der Bereichsmitte
 
 **Kein Polling.** Der Coordinator hat kein `update_interval`. Er rechnet neu bei
-`async_track_state_change_event` auf den Quell-Entities und einmal täglich um
-Mitternacht (`async_track_time_change`), weil das Kind älter wird und die
-Mittagszeit-Warnung tagesabhängig ist.
+`async_track_state_change_event` auf den Quell-Entities und zu drei festen
+Uhrzeiten (`async_track_time_change`): um Mitternacht, weil das Kind älter wird,
+sowie um 11:00 und 15:00, den Rändern des Mittagsfensters. Ohne die beiden
+letzten erscheint und verschwindet die Mittagszeit-Warnung nur dann, wenn
+zufällig eine Quell-Entity ihren State ändert.
 
 ## Entities
 
@@ -111,12 +113,22 @@ Attribute aller Kleidungs-Sensoren:
 | `warnings` | Liste der Warnungen, die **gerade** zutreffen (siehe unten) |
 | `base_temperature` | Temperatur, mit der gerechnet wurde |
 | `temperature_source` | `apparent` \| `measured` \| `manual_range` |
-| `weather_condition` | State der Wetter-Entity |
+| `weather_condition` | State der Wetter-Entity, `None` wenn nicht lesbar |
 | `age_months` | Alter zum Berechnungszeitpunkt |
+| `uv_unavailable` | `true`, wenn eine UV-Quelle konfiguriert, aber gerade nicht lesbar ist |
 | `tog` | nur bei `schlafen` |
 
 Attribute des UV-Sensors: `uv_index`, `level`, `measures` (Liste),
 `sunscreen` (`none` \| `spf30_plus`), `warnings`.
+
+Der Alterssensor trägt zusätzlich `missing_outdoor_entity` und
+`missing_room_entity`. Das ist kein Schönheitsfehler, sondern die einzige
+Möglichkeit: Home Assistant übernimmt `extra_state_attributes` nur in den State
+einer Entity, die *verfügbar* ist — der ausgefallene Kleidungssensor kann also
+nicht sagen, welche Quelle ihn ausgeknipst hat. Der Alterssensor ist
+konstruktionsbedingt immer verfügbar (sein Wert kommt allein aus dem
+Geburtsdatum) und damit die einzige Stelle pro Kind, die die Antwort noch
+transportieren kann. Getrennt nach Quelle, weil die Verfügbarkeit es auch ist.
 
 ## Regelwerk
 
@@ -125,14 +137,29 @@ Kern ist ein Index über sieben Temperaturbereiche; Situation und Alter
 verschieben diesen Index, statt jede Kombination einzeln zu pflegen.
 
 ```
-index  = bucket_index(base_temperature)      # 0 = Hitze … 6 = winterfest
-index += age_shift(age_months, base_temperature)
-index += situation_shift(situation, base_temperature)
-index  = clamp(index, 0, 6)
+bucket = bucket_index(base_temperature)      # 0 = Hitze … 6 = winterfest
+shift  = age_shift(age_months, base_temperature)
+       + situation_shift(situation, base_temperature)
+index  = clamp(min(bucket + 1, bucket + shift), 0, 6)
 outfit = BASE_TABLE[index] + situation_extras(situation, weather_condition)
 ```
 
 Höherer Index heißt wärmer angezogen.
+
+**Der zusammengesetzte Shift ist nach oben gedeckelt: höchstens ein Band über
+dem, was die Temperatur allein vorgibt** (`at_most_one_band_warmer` in
+`recommendation.py`). Nach unten bleibt er ungedeckelt — die −1 der Babytrage
+ist echte Körperwärme, und zu leicht angezogen meldet ein Kind selbst.
+
+Ohne diese Deckelung addieren sich Alters- und Situationsmodifikator
+unbegrenzt. Konkret: ein zwei Monate altes Kind im Kinderwagen bei 12,9 °C
+sammelte +1 (Alter) und +1 (Kinderwagen) ein und landete auf `winterfest` —
+Fleeceanzug, Winteroverall, warme Mütze mit Ohrenschutz, Fäustlinge,
+Wollsocken, also exakt das Outfit für unter 0 °C und identisch mit dem, was
+dasselbe Kind bei −10 °C bekommt. Ab unter 10 °C kam ein Fußsack dazu, bei
+Regen zusätzlich ein Regenverdeck, das laut eigenem Hinweis Wärme staut. Der
+Fehler zeigt in Richtung Überhitzung, und das ist die Richtung, die ein
+Säugling nicht anzeigt. Mit Deckelung: `sehr_warm`.
 
 ### Basistabelle (Außentemperatur, 4+ Monate, Situation *Allgemein*)
 
@@ -166,10 +193,10 @@ Säuglingen das größere Risiko, nicht Kälte.
 | Situation | Basiswert | Shift | Zusätze und Hinweise |
 |---|---|---|---|
 | Allgemein | Außentemperatur | 0 | — |
-| Kinderwagen | Außentemperatur | +1 bei < 15 °C | Fußsack ab < 10 °C. Regenverdeck bei Regen, aber Hinweis auf Wärmestau darunter. Das Kind bewegt sich nicht und erzeugt keine eigene Wärme. |
+| Kinderwagen | Außentemperatur | +1 bei < 15 °C, zusammen mit dem Alters-Shift gedeckelt | Fußsack ab < 10 °C. Regenverdeck bei Regen, aber Hinweis auf Wärmestau darunter. Das Kind bewegt sich nicht und erzeugt keine eigene Wärme. |
 | Babytrage | Außentemperatur | −1 | Körperwärme der tragenden Person ersetzt eine Schicht am Oberkörper. Beine und Füße liegen frei: extra Socken oder Stulpen. Keine dicke Jacke — sie beeinträchtigt die Anhock-Spreiz-Haltung. Ab 23 °C Warnung wegen Überhitzung. |
 | Auto | Außentemperatur | 0, Index gedeckelt auf 4 | Keine dicke Winterkleidung im Sitz. Decke erst **nach** dem Anschnallen über den Schoß. Fleece oder Wollwalk statt wattierter Jacke. |
-| Zuhause | Raumtemperatur | 0 | Die Außenteile der Basistabelle entfallen: keine Jacke, keine Mütze, keine Schuhe, kein Halstuch. Socken oder Anti-Rutsch-Söckchen. |
+| Zuhause | Raumtemperatur | — | Eigene Innentabelle, siehe unten. |
 | Schlafen | Raumtemperatur | — | Eigene TOG-Tabelle, siehe unten. |
 
 Die Auto-Deckelung ist kein Komfortdetail. Wattierte Kleidung lässt Spiel
@@ -192,6 +219,32 @@ Kissen. Empfohlene Raumtemperatur 16–20 °C, optimal 18 °C.
 Hersteller-TOG-Tabellen überlappen sich (2,5 TOG wird für 15–21 °C angegeben,
 1,0 TOG für 18–24 °C). Übernommen sind deshalb die überschneidungsfreien
 Grenzen von NHS und Lullaby Trust, damit die Regel deterministisch bleibt.
+
+### Zuhause
+
+| Raumtemperatur | Stufe | Kleidung |
+|---|---|---|
+| ≥ 24 °C | `sehr_leicht` | Kurzarmbody |
+| 21–23 °C | `leicht` | Kurzarmbody, leichte Hose |
+| 18–20 °C | `mittel` | Langarmbody, Hose, dünne Söckchen |
+| 16–17 °C | `warm` | Langarmbody, Strampler, Pullover, Socken |
+| < 16 °C | `sehr_warm` | Langarmbody, Strampler, Pullover, Fleeceanzug, Socken |
+
+Keine Mütze, keine Schuhe. Der Altersmodifikator gilt wie draußen: unter vier
+Monaten ein Band wärmer, aber nur unterhalb von 20 °C.
+
+Diese Tabelle existiert, weil der ursprüngliche Entwurf — Basistabelle nehmen
+und die Draußen-Teile herausfiltern — nicht funktioniert. Die Wärmezunahme der
+Basistabelle steckt ab Zeile 4 in der Oberbekleidung: `fleece_jacket` ersetzt
+dort den `sweater`. Nach dem Filtern bleibt eine Zeile weiter unten also
+*weniger* übrig als eine Zeile darüber. Konkret bekam ein zwei Monate altes
+Kind bei 16–17 °C Raumtemperatur zwei Schichten, ein sechs Monate altes drei —
+der Altersmodifikator kehrte sich um, ausgerechnet bei der empfohlenen
+Schlafzimmertemperatur. Eine eigene Tabelle ist per Konstruktion monoton; die
+Basistabelle bleibt unangetastet und damit auch die Draußen-Regeln.
+
+Das unterste Band ist bei 16 °C geteilt, damit der Altersmodifikator dort nicht
+gegen die Tabellenkante läuft und wirkungslos wird.
 
 ### UV
 
@@ -218,7 +271,7 @@ Outfits. Sie sind nicht abschaltbar.
 
 | Kennung | Bedingung |
 |---|---|
-| `ueberhitzung` | Raumtemperatur > 21 °C bei `schlafen` oder `zuhause` |
+| `ueberhitzung` | Raumtemperatur > 21 °C, **nur bei `schlafen`** |
 | `keine_muetze` | immer bei `schlafen` |
 | `uv` | UV-Index ≥ 3, nur bei den Außen-Situationen und am UV-Sensor |
 | `mittagszeit` | lokale Zeit zwischen 11:00 und 15:00 und UV-Index ≥ 3, ebenfalls nur draußen |
@@ -228,6 +281,13 @@ Outfits. Sie sind nicht abschaltbar.
 Die Überhitzungswarnung wiegt schwerer, als die Zahl vermuten lässt: Ist einem
 Säugling zu warm, schläft er in der Regel einfach weiter, während er bei Kälte
 protestiert. Das Kind meldet nur eine der beiden Richtungen.
+
+Genau deshalb gilt sie nur beim Schlafen. Die 21-Grad-Schwelle leitet sich aus
+dem empfohlenen Bereich 16–20 °C ab, und der stammt aus der BIÖG-Empfehlung zur
+**Schlafumgebung**, nicht aus einer allgemeinen Empfehlung für Wohnräume. Ein
+Wohnzimmer mit 22 °C ist im Winter normal; bei `zuhause` trüge die Karte damit
+die ganze Heizsaison über eine rote Warnung — und eine Warnung, die immer an
+ist, entwertet dieselbe Warnung dort, wo sie zählt.
 
 ## Karte
 
@@ -275,7 +335,14 @@ auch dann, wenn niemand auf die Karte schaut.
 ## Fehlerverhalten
 
 - Quell-Entity fehlt oder ist `unavailable` → der abhängige Sensor wird
-  `unavailable`; die Karte nennt konkret die fehlende Entity, statt leer zu bleiben
+  `unavailable`; die Karte nennt konkret die fehlende Entity, statt leer zu bleiben.
+  *Abhängig* heißt dabei: nach Quelle getrennt. Außentemperatur und
+  Raumtemperatur fallen unabhängig voneinander aus, also nimmt eine
+  ausgefallene Wetter-Entity die beiden Raum-Situationen (`schlafen`,
+  `zuhause`) nicht mit — und umgekehrt. Der UV-Sensor hat seine eigene Regel
+- UV-Quelle konfiguriert, aber nicht lesbar → die Kleidungssensoren setzen
+  `uv_unavailable`, die Karte zeigt einen dezenten Hinweis in der Kontextzeile.
+  Es wird **keine** UV-Warnung aus fehlenden Daten erfunden
 - Wetter-Entity ohne `apparent_temperature` → `temperature`, vermerkt in
   `temperature_source`
 - keine UV-Quelle konfiguriert → `sensor.<kind>_uv_schutz` wird nicht angelegt;
@@ -299,6 +366,12 @@ Backend mit pytest, Frontend mit vitest, analog zu `ha-pareto`:
   ist das von Hand nicht mehr überschaubar
 - `test_recommendation_shifts` — Grenzfälle der Modifikatoren: kein
   Alters-Shift ab 20 °C, Auto-Deckelung bei Index 4, Clamping an den Rändern
+- `test_recommendation_invariants` — Eigenschaften über den gesamten
+  Temperaturbereich in 0,1-°C-Schritten, für jede Situation und Altersstufe:
+  kälter ist nie leichter angezogen, unter vier Monate ist nie leichter
+  angezogen als älter, und der Außen-Index liegt nie mehr als ein Band über
+  `bucket_index(t)`. Die dritte Eigenschaft ist die, die den ungedeckelten
+  Shift gefunden hätte
 - `test_warnings` — jede Warnbedingung einzeln, inklusive Zeitfenster 11–15 Uhr
 - `test_config_flow`, `test_coordinator`, `test_sensor`, `test_init`
 - `test_translations` — `de` und `en` vollständig und deckungsgleich
@@ -340,3 +413,10 @@ Backend mit pytest, Frontend mit vitest, analog zu `ha-pareto`:
    Bereich 16–20 °C ab.
 4. **Die Deckelung des Auto-Index auf 4** entspricht „keine wattierte
    Winterjacke". Ob 4 die richtige Grenze ist oder 3, ist eine Setzung.
+5. **Die Deckelung des zusammengesetzten Shifts auf +1 Band** ist eine
+   Entscheidung, keine Quelle. Belegt ist nur die Richtung: Überhitzung ist
+   das größere Risiko und wird vom Kind nicht angezeigt. Dass ausgerechnet
+   *ein* Band die richtige Obergrenze ist, ist gesetzt — denkbar wäre auch,
+   die einzelnen Shifts kleiner zu machen, statt ihre Summe zu deckeln. Die
+   Deckelung hat den Vorzug, an einer Stelle zu stehen und dort nachlesbar
+   zu sein.
