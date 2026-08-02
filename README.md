@@ -69,16 +69,38 @@ afterwards, in the child's **options** (the cog on the integration entry):
 | Option | Required | Meaning |
 |---|---|---|
 | Weather entity | yes | A `weather.*` entity. Its `apparent_temperature` is used when present, otherwise `temperature`. |
-| UV index sensor | no | Any sensor entity that reports a UV index. |
+| UV index sensor | no | Any sensor entity that reports a UV index. If your weather integration only exposes one as an attribute, see below. |
 | Room temperature | yes | Either a temperature sensor, or a fixed range picked from a list (16–17, 18–19, 20–21, 22–23, 24–25, 26+ °C) if you don't have one. A fixed range is evaluated at its midpoint. |
 
-**UV features only appear when a UV source is configured.** Most weather
-integrations do not publish a UV index at all — Met.no, Home Assistant's
-default, among them — so on many setups there is simply nothing to read.
-OpenWeatherMap and Open-Meteo do provide one; point the UV index sensor
-option at that entity if you use either. Without a UV source, the sun
-protection sensor described below is never created, and no UV warning ever
+**UV features only appear when a UV source is configured.** Without one, the
+sun protection sensor described below is never created, and no UV warning ever
 appears.
+
+OpenWeatherMap and Open-Meteo publish a UV index as a sensor entity; point the
+option straight at it. Met.no, Home Assistant's default, also reports a UV
+index, but as a `uv_index` **attribute** on its weather entity rather than as a
+sensor of its own — so the option cannot read it directly. Bridge the two with
+a template sensor: **Settings → Devices & Services → Helpers → Create helper →
+Template → Template a sensor**, with
+
+```jinja
+{{ state_attr('weather.forecast_home', 'uv_index') }}
+```
+
+as the state template. The resulting `sensor.*` is what the UV index option
+wants. If you keep your configuration in YAML instead:
+
+```yaml
+template:
+  - sensor:
+      - name: "UV Index"
+        unique_id: metno_uv_index
+        state: "{{ state_attr('weather.forecast_home', 'uv_index') }}"
+        availability: "{{ state_attr('weather.forecast_home', 'uv_index') is not none }}"
+        state_class: measurement
+```
+
+Substitute your own weather entity if it is not `weather.forecast_home`.
 
 ## Entities
 
