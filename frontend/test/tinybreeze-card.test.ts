@@ -32,6 +32,12 @@ if (typeof window === "undefined") {
 
 import { describe, expect, it } from "vitest";
 
+// Safe as static imports despite the hoisting note above: neither module
+// touches `window` (logic.ts is held to that by logic.test.ts's own source
+// scan), so evaluating them before the alias runs changes nothing.
+import { SITUATION_ICONS } from "../src/logic";
+import { SITUATIONS } from "../src/types";
+
 // Imported for its module-level side effect (customElements.define +
 // window.customCards.push) -- nothing is imported by name, matching the
 // card's own house style of not exporting the class (ha-pareto's
@@ -299,5 +305,63 @@ describe("tinybreeze-card heading", () => {
     expect(card._heading({ level: "some_future_level", tog: null }, "en")).toBe(
       "some_future_level",
     );
+  });
+});
+
+interface CardWithSituations {
+  setConfig(config: unknown): void;
+  _situations(language: string): unknown;
+  _situationTab(situation: string, language: string): unknown;
+}
+
+function cardWithSituations(config: Record<string, unknown>): CardWithSituations {
+  const card = new (cardCtor())() as unknown as CardWithSituations;
+  card.setConfig(config);
+  return card;
+}
+
+describe("tinybreeze-card situation selector", () => {
+  const CONFIG = {
+    type: "custom:tinybreeze-card",
+    entry: "mia",
+    default_situation: "schlafen",
+  };
+
+  it("gives every situation an icon, so none renders as a blank segment", () => {
+    // SITUATION_ICONS is typed as a total Record<Situation, string>, so this
+    // is already a compile error rather than a runtime gap -- pinned here as
+    // well for the day that type is loosened to a lookup with a fallback.
+    expect(Object.keys(SITUATION_ICONS).sort()).toEqual([...SITUATIONS].sort());
+    for (const situation of SITUATIONS) {
+      expect(SITUATION_ICONS[situation]).toMatch(/^mdi:/);
+    }
+    const text = renderedText(cardWithSituations(CONFIG)._situations("de"));
+    for (const situation of SITUATIONS) {
+      expect(text).toContain(SITUATION_ICONS[situation]);
+    }
+  });
+
+  it("labels every visible situation in the viewing user's language", () => {
+    const text = renderedText(cardWithSituations(CONFIG)._situations("en"));
+    expect(text).toContain("Stroller");
+    expect(text).toContain("Sleep");
+    expect(renderedText(cardWithSituations(CONFIG)._situations("de"))).toContain("Kinderwagen");
+  });
+
+  it("marks exactly one segment as the selected one", () => {
+    // aria-selected is both what a screen reader announces and what the
+    // stylesheet fills in, so counting its values covers both.
+    const text = renderedText(cardWithSituations(CONFIG)._situations("de"));
+    expect(text.match(/\btrue\b/g)).toHaveLength(1);
+    expect(text.match(/\bfalse\b/g)).toHaveLength(SITUATIONS.length - 1);
+  });
+
+  it("puts the selected marker on the situation the card actually shows", () => {
+    // The configured default "schlafen" is not among the visible situations,
+    // so parseConfig falls back to the first one shown. The marker must
+    // follow that fallback, not sit on a segment the card never renders.
+    const card = cardWithSituations({ ...CONFIG, situations: ["auto", "zuhause"] });
+    expect(renderedText(card._situationTab("auto", "en"))).toMatch(/\btrue\b/);
+    expect(renderedText(card._situationTab("zuhause", "en"))).toMatch(/\bfalse\b/);
   });
 });

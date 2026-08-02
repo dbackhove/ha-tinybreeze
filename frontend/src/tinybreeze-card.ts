@@ -29,6 +29,7 @@ import {
   renderModel,
   usesRoomTemperature,
   uvEntityIdFor,
+  SITUATION_ICONS,
   type RenderModel,
 } from "./logic";
 import { translate } from "./strings";
@@ -63,8 +64,8 @@ class TinybreezeCard extends LitElement {
 
   setConfig(config: unknown): void {
     this._config = parseConfig(config);
-    // A default that is not among the configured chips is already resolved
-    // by parseConfig, so this is always one of the situations on screen.
+    // A default that is not among the configured situations is already
+    // resolved by parseConfig, so this is always one on screen.
     this._situation = this._config.default_situation;
   }
 
@@ -140,11 +141,7 @@ class TinybreezeCard extends LitElement {
           </button>
         </div>
 
-        <div class="chips">
-          ${this._config.situations.map((situation) => this._chip(situation, language))}
-        </div>
-
-        ${this._infoOpen ? this._infoPanel(language) : nothing}
+        ${this._situations(language)} ${this._infoOpen ? this._infoPanel(language) : nothing}
         ${model?.available ? this._body(model, language) : this._unavailable(model, language)}
       </ha-card>
     `;
@@ -155,16 +152,34 @@ class TinybreezeCard extends LitElement {
       return nothing;
     }
     const unit = this._ageUnit();
-    return html`<span class="age">· ${model.ageMonths}${unit ? ` ${unit}` : ""}</span>`;
+    return html`<span class="age">${model.ageMonths}${unit ? ` ${unit}` : ""}</span>`;
   }
 
-  private _chip(situation: Situation, language: string): TemplateResult {
+  private _situations(language: string): TemplateResult | typeof nothing {
+    if (!this._config) {
+      return nothing;
+    }
+    return html`
+      <div class="situations" role="tablist">
+        ${this._config.situations.map((situation) => this._situationTab(situation, language))}
+      </div>
+    `;
+  }
+
+  private _situationTab(situation: Situation, language: string): TemplateResult {
+    // `aria-selected` is the only marker: it is what a screen reader
+    // announces, and the stylesheet keys off the same attribute rather than a
+    // parallel class, so the two can never disagree about which segment is
+    // the current one.
     return html`
       <button
-        class="chip ${situation === this._situation ? "selected" : ""}"
+        class="situation"
+        role="tab"
+        aria-selected=${String(situation === this._situation)}
         @click=${() => this._selectSituation(situation)}
       >
-        ${translate(language, "situation", situation)}
+        <ha-icon icon=${SITUATION_ICONS[situation]}></ha-icon>
+        <span class="situation-label">${translate(language, "situation", situation)}</span>
       </button>
     `;
   }
@@ -183,7 +198,8 @@ class TinybreezeCard extends LitElement {
     const message = translate(language, "error", "unavailable");
     return html`
       <div class="notice error">
-        ${message}${model?.missing ? html`: ${model.missing}` : nothing}
+        <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
+        <span>${message}${model?.missing ? html`: ${model.missing}` : nothing}</span>
       </div>
     `;
   }
@@ -191,10 +207,12 @@ class TinybreezeCard extends LitElement {
   private _body(model: RenderModel, language: string): TemplateResult {
     return html`
       ${model.warnings.length ? this._warnings(model.warnings) : nothing}
-      <div class="level">${this._heading(model, language)}</div>
-      ${model.tog !== null
-        ? html`<div class="tog">${translate(language, "label", "tog")} ${model.tog}</div>`
-        : nothing}
+      <div class="level-row">
+        <span class="level">${this._heading(model, language)}</span>
+        ${model.tog !== null
+          ? html`<span class="tog">${translate(language, "label", "tog")} ${model.tog}</span>`
+          : nothing}
+      </div>
       <ul class="outfit">
         ${model.outfit.map((item) => html`<li>${item}</li>`)}
       </ul>
@@ -276,11 +294,16 @@ class TinybreezeCard extends LitElement {
     return parts.length ? html`<div class="context-row">${parts}</div>` : nothing;
   }
 
+  // Every colour comes from a Home Assistant theme variable with a fallback,
+  // and nothing here paints a surface of its own. That is what makes the card
+  // sit correctly in an arbitrary theme and get dark mode for free -- the
+  // reason the design stays inside HA's own visual language rather than
+  // bringing one of its own.
   static override styles = css`
     ha-card {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 14px;
       padding: 16px;
     }
 
@@ -292,6 +315,10 @@ class TinybreezeCard extends LitElement {
     }
 
     .title {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
       font-size: var(--ha-card-header-font-size, 24px);
       font-weight: 400;
       color: var(--ha-card-header-color, var(--primary-text-color));
@@ -299,10 +326,14 @@ class TinybreezeCard extends LitElement {
     }
 
     .title .age {
-      margin-left: 4px;
-      font-size: 0.55em;
+      font-size: 0.5em;
       font-weight: 400;
+      line-height: 1;
       color: var(--secondary-text-color);
+      background: var(--divider-color, #e0e0e0);
+      border-radius: 10px;
+      padding: 4px 8px;
+      white-space: nowrap;
     }
 
     button.info-toggle {
@@ -323,23 +354,46 @@ class TinybreezeCard extends LitElement {
       color: var(--primary-text-color);
     }
 
-    .chips {
+    /* Equal-width segments that wrap rather than scroll: six situations fit
+       on a full-width card and stack tidily on a narrow one. */
+    .situations {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
     }
 
-    .chip {
+    .situation {
+      flex: 1 1 76px;
+      min-width: 68px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 4px;
       border: 1px solid var(--divider-color, #e0e0e0);
-      background: var(--card-background-color, transparent);
-      color: var(--primary-text-color);
-      border-radius: 16px;
-      padding: 4px 12px;
-      font-size: 0.85em;
+      border-radius: 12px;
+      background: none;
+      color: var(--secondary-text-color);
+      font-family: inherit;
+      font-size: 0.78em;
+      line-height: 1.15;
+      text-align: center;
       cursor: pointer;
+      transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease;
     }
 
-    .chip.selected {
+    .situation ha-icon {
+      --mdc-icon-size: 22px;
+    }
+
+    .situation:hover {
+      color: var(--primary-text-color);
+    }
+
+    .situation[aria-selected="true"] {
       background: var(--primary-color, #03a9f4);
       border-color: var(--primary-color, #03a9f4);
       color: var(--text-primary-color, #fff);
@@ -348,45 +402,67 @@ class TinybreezeCard extends LitElement {
     .info-panel {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
       border-top: 1px solid var(--divider-color, #e0e0e0);
-      padding-top: 8px;
+      padding-top: 10px;
     }
 
     .info-panel p {
       margin: 0;
-      font-size: 0.85em;
+      font-size: 0.8em;
+      line-height: 1.4;
       color: var(--secondary-text-color);
     }
 
+    /* Deliberately quiet: no fill, no border, no accent bar. The warnings
+       stay above the recommendation and stay unfilterable, but a car-seat
+       note should not shout down the answer the card exists to give. */
     .warnings {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
     }
 
     .warning-row {
       display: flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--error-color, #db4437);
-      font-size: 0.9em;
-    }
-
-    .warning-row ha-icon {
-      --mdc-icon-size: 18px;
-      flex-shrink: 0;
-    }
-
-    .level {
-      font-size: 1.1em;
-      font-weight: 500;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 0.85em;
+      line-height: 1.35;
       color: var(--primary-text-color);
     }
 
+    .warning-row ha-icon {
+      --mdc-icon-size: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: var(--error-color, #db4437);
+    }
+
+    .level-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .level {
+      font-size: 1.5em;
+      font-weight: 500;
+      line-height: 1.2;
+      color: var(--primary-text-color);
+    }
+
+    /* Beside the heading rather than below it: the TOG value qualifies the
+       recommendation, it is not a second one. */
     .tog {
-      font-size: 0.85em;
+      flex-shrink: 0;
+      font-size: 0.72em;
       color: var(--secondary-text-color);
+      border: 1px solid var(--divider-color, #e0e0e0);
+      border-radius: 10px;
+      padding: 2px 8px;
+      white-space: nowrap;
     }
 
     ul.outfit {
@@ -395,42 +471,52 @@ class TinybreezeCard extends LitElement {
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 6px;
     }
 
     ul.outfit li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.35;
       color: var(--primary-text-color);
     }
 
     ul.outfit li::before {
-      content: "· ";
-      color: var(--secondary-text-color);
+      content: "";
+      flex-shrink: 0;
+      width: 6px;
+      height: 6px;
+      margin-top: 0.45em;
+      border-radius: 50%;
+      background: var(--primary-color, #03a9f4);
     }
 
     .hint {
       font-size: 0.85em;
-      font-style: italic;
+      line-height: 1.35;
       color: var(--secondary-text-color);
     }
 
     .context-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
-      font-size: 0.85em;
-      color: var(--secondary-text-color);
-      border-top: 1px solid var(--divider-color, #e0e0e0);
-      padding-top: 8px;
+      gap: 6px;
     }
 
     .context-item {
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      font-size: 0.78em;
+      color: var(--secondary-text-color);
+      border: 1px solid var(--divider-color, #e0e0e0);
+      border-radius: 10px;
+      padding: 3px 8px;
     }
 
     .context-item ha-icon {
-      --mdc-icon-size: 16px;
+      --mdc-icon-size: 15px;
     }
 
     .context-item.muted {
@@ -439,10 +525,21 @@ class TinybreezeCard extends LitElement {
     }
 
     .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 0.9em;
+      line-height: 1.35;
       color: var(--secondary-text-color);
     }
 
-    .notice.error {
+    .notice ha-icon {
+      --mdc-icon-size: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .notice.error ha-icon {
       color: var(--error-color, #db4437);
     }
   `;

@@ -14,7 +14,7 @@ export function visibleSituations(candidates: unknown): Situation[] {
     (SITUATIONS as readonly string[]).includes(value as string),
   );
   // An empty or fully-unrecognised list would otherwise render a card with
-  // no chips at all; falling back to every situation keeps it usable.
+  // no selector at all; falling back to every situation keeps it usable.
   return known.length > 0 ? known : [...SITUATIONS];
 }
 
@@ -48,6 +48,22 @@ export function parseConfig(raw: unknown): TinybreezeCardConfig {
     show_age: flag(config.show_age),
   };
 }
+
+/**
+ * The icon each situation carries in the selector.
+ *
+ * Typed as a total Record rather than a lookup with a fallback: a new
+ * situation in types.ts must then be given an icon here to compile, instead
+ * of silently rendering a blank square on the one control the card has.
+ */
+export const SITUATION_ICONS: Record<Situation, string> = {
+  kinderwagen: "mdi:baby-carriage",
+  babytrage: "mdi:human-male-child",
+  auto: "mdi:car-child-seat",
+  schlafen: "mdi:sleep",
+  zuhause: "mdi:home-outline",
+  allgemein: "mdi:tshirt-crew-outline",
+};
 
 export function entityIdFor(slug: string, situation: Situation): string {
   return `sensor.${slug}_kleidung_${situation}`;
@@ -122,7 +138,8 @@ export function readRecommendation(
 }
 
 export function cardSize(outfitLength: number): number {
-  // Header, chips, context row, plus roughly one grid row per two items.
+  // Header, situation row, context row, plus roughly one grid row per two
+  // items.
   return 3 + Math.ceil(outfitLength / 2);
 }
 

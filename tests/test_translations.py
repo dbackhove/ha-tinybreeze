@@ -42,19 +42,35 @@ MIN_WARNING_HINT_MEASURE_KEYS = 10
 # Enumerated straight from const.py's CONF_*/ROOM_* names, not copied from
 # the task brief's strings.json sketch: that sketch was written before task
 # 7 added `room_entity_required` to the options flow, and does not carry it.
+SOURCE_FIELDS = (
+    CONF_WEATHER_ENTITY,
+    CONF_UV_ENTITY,
+    CONF_ROOM_SOURCE,
+    CONF_ROOM_ENTITY,
+    CONF_ROOM_RANGE,
+)
+
+# The same five fields are asked twice: once during setup, once in the options
+# flow. Both places need labels, and both need the explanations underneath.
+SOURCE_STEPS = ("config.step.sources", "options.step.init")
+
 CONFIG_FLOW_DATA_KEYS = {
     f"config.step.user.data.{CONF_NAME}",
     f"config.step.user.data.{CONF_BIRTH_DATE}",
-    f"options.step.init.data.{CONF_WEATHER_ENTITY}",
-    f"options.step.init.data.{CONF_UV_ENTITY}",
-    f"options.step.init.data.{CONF_ROOM_SOURCE}",
-    f"options.step.init.data.{CONF_ROOM_ENTITY}",
-    f"options.step.init.data.{CONF_ROOM_RANGE}",
-}
+} | {f"{step}.data.{field}" for step in SOURCE_STEPS for field in SOURCE_FIELDS}
+
+# The prose that tells someone what Tinybreeze is, that it is not medical
+# advice, and what each source is for. Missing on one language means a user
+# of that language is asked for a weather entity with no word on why.
+CONFIG_FLOW_DESCRIPTION_KEYS = {
+    "config.step.user.description",
+    "config.step.sources.description",
+} | {f"{step}.data_description.{field}" for step in SOURCE_STEPS for field in SOURCE_FIELDS}
 
 CONFIG_FLOW_ERROR_KEYS = {
     "config.error.invalid_date",
     "config.error.birth_date_in_future",
+    "config.error.room_entity_required",
     "options.error.room_entity_required",
 }
 
@@ -63,7 +79,9 @@ SELECTOR_KEYS = {
     f"selector.room_source.options.{ROOM_SOURCE_RANGE}",
 } | {f"selector.room_range.options.{key}" for key in ROOM_RANGES}
 
-CONFIG_FLOW_KEYS = CONFIG_FLOW_DATA_KEYS | CONFIG_FLOW_ERROR_KEYS | SELECTOR_KEYS
+CONFIG_FLOW_KEYS = (
+    CONFIG_FLOW_DATA_KEYS | CONFIG_FLOW_DESCRIPTION_KEYS | CONFIG_FLOW_ERROR_KEYS | SELECTOR_KEYS
+)
 
 
 def _load(language: str) -> dict:
@@ -131,10 +149,11 @@ def test_every_warning_and_hint_is_translated() -> None:
 
 
 def test_every_config_flow_key_is_translated() -> None:
-    """config_flow.py's form fields, errors and selectors all resolve.
+    """config_flow.py's form fields, errors, prose and selectors all resolve.
 
     Includes `options.error.room_entity_required`, which task 7 added to the
-    options flow after this task's brief was written.
+    options flow after this task's brief was written, and the two-step setup's
+    own `config.step.sources.*` keys.
     """
     assert len(CONFIG_FLOW_KEYS) >= 15
     for language in ("de", "en"):

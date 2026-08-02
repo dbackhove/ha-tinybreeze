@@ -40,8 +40,12 @@ weather entity's `apparent_temperature` if it has one, otherwise its plain
 1. Add this repository to HACS as a custom repository (category:
    **Integration**).
 2. Install **Tinybreeze** and restart Home Assistant.
-3. Add a child under **Settings → Devices & Services** — the setup form asks
-   for a name and a date of birth.
+3. Add a child under **Settings → Devices & Services**. Setup has two steps:
+   the child (name, date of birth), then the data sources it reads.
+
+Have a weather integration set up before you start — it is required. A UV
+index sensor and a room temperature sensor are optional, and the second step
+explains what each one is for.
 
 Repeat step 3 for every child; each one is its own config entry, its own
 device, and its own set of entities.
@@ -52,9 +56,9 @@ add by hand.
 
 ## Configuration
 
-Name and date of birth are set once, at installation. Everything else lives
-in the child's **options** (the cog on the integration entry), because these
-can change without recreating the child:
+Name and date of birth are set once, at installation. The data sources are
+asked for during setup too, but unlike the child they stay editable
+afterwards, in the child's **options** (the cog on the integration entry):
 
 | Option | Required | Meaning |
 |---|---|---|
@@ -155,8 +159,8 @@ so you rarely need to type it by hand.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `situations` | all six | Which chips are shown |
-| `default_situation` | first shown chip | Which chip is selected when the card loads |
+| `situations` | all six | Which situations the selector offers |
+| `default_situation` | first shown situation | Which one is selected when the card loads |
 | `show_weather` | `true` | Outdoor temperature in the context row, for outdoor situations |
 | `show_room_temperature` | `true` | Room temperature in the context row, for sleep and home |
 | `show_uv` | `true` | UV index in the context row |

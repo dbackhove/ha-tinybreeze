@@ -3,15 +3,35 @@
     "step": {
       "user": {
         "title": "Kind hinzufügen",
+        "description": "Tinybreeze empfiehlt Kleidung anhand von Wetter, UV-Index und Raumtemperatur.\n\nDas ist eine allgemeine Orientierung und keine medizinische Beratung. Prüfe die Wärme am Nacken und verlass dich auf dein eigenes Urteil.\n\nGleich brauchst du eine Wetter-Integration. Ein UV-Index-Sensor und ein Raumtemperatur-Sensor sind optional.",
         "data": {
           "name": "Name",
           "birth_date": "Geburtsdatum"
+        }
+      },
+      "sources": {
+        "title": "Datenquellen",
+        "description": "Woher Tinybreeze seine Werte liest. Alles davon lässt sich später in den Optionen der Integration ändern.",
+        "data": {
+          "weather_entity": "Wetter-Entität",
+          "uv_entity": "UV-Index-Sensor (optional)",
+          "room_source": "Raumtemperatur",
+          "room_entity": "Raumtemperatur-Sensor",
+          "room_range": "Fester Bereich"
+        },
+        "data_description": {
+          "weather_entity": "Liefert Außentemperatur und Wetterlage. Wenn die Entität eine gefühlte Temperatur veröffentlicht, wird diese verwendet.",
+          "uv_entity": "Optional. Ohne ihn gibt es keinen Sonnenschutz-Sensor und keine UV-Warnung. Met.no, die Standard-Wetterquelle von Home Assistant, liefert keinen UV-Index — OpenWeatherMap und Open-Meteo schon.",
+          "room_source": "Die Empfehlungen für Schlafen und Zuhause lesen den Raum. Wähle einen Sensor oder gib eine feste Spanne an, wenn du keinen hast.",
+          "room_entity": "Wird nur verwendet, wenn die Raumtemperatur von einem Sensor kommt.",
+          "room_range": "Wird nur verwendet, wenn kein Sensor gewählt ist."
         }
       }
     },
     "error": {
       "birth_date_in_future": "Das Geburtsdatum liegt in der Zukunft.",
-      "invalid_date": "Kein gültiges Datum."
+      "invalid_date": "Kein gültiges Datum.",
+      "room_entity_required": "Kein Raumtemperatur-Sensor ausgewählt."
     }
   },
   "options": {
@@ -24,6 +44,13 @@
           "room_source": "Raumtemperatur",
           "room_entity": "Raumtemperatur-Sensor",
           "room_range": "Fester Bereich"
+        },
+        "data_description": {
+          "weather_entity": "Liefert Außentemperatur und Wetterlage. Wenn die Entität eine gefühlte Temperatur veröffentlicht, wird diese verwendet.",
+          "uv_entity": "Optional. Ohne ihn gibt es keinen Sonnenschutz-Sensor und keine UV-Warnung. Met.no, die Standard-Wetterquelle von Home Assistant, liefert keinen UV-Index — OpenWeatherMap und Open-Meteo schon.",
+          "room_source": "Die Empfehlungen für Schlafen und Zuhause lesen den Raum. Wähle einen Sensor oder gib eine feste Spanne an, wenn du keinen hast.",
+          "room_entity": "Wird nur verwendet, wenn die Raumtemperatur von einem Sensor kommt.",
+          "room_range": "Wird nur verwendet, wenn kein Sensor gewählt ist."
         }
       }
     },

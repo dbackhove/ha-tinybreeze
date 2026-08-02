@@ -3,15 +3,35 @@
     "step": {
       "user": {
         "title": "Add child",
+        "description": "Tinybreeze suggests clothing from the weather, the UV index and the room temperature.\n\nThis is general guidance, not medical advice. Check warmth at the neck and trust your own judgement.\n\nNext you will need a weather integration. A UV index sensor and a room temperature sensor are optional.",
         "data": {
           "name": "Name",
           "birth_date": "Date of birth"
+        }
+      },
+      "sources": {
+        "title": "Data sources",
+        "description": "Where Tinybreeze reads its numbers. All of this can be changed later in the integration's options.",
+        "data": {
+          "weather_entity": "Weather entity",
+          "uv_entity": "UV index sensor (optional)",
+          "room_source": "Room temperature",
+          "room_entity": "Room temperature sensor",
+          "room_range": "Fixed range"
+        },
+        "data_description": {
+          "weather_entity": "Supplies the outdoor temperature and the weather condition. The apparent temperature is used when the entity publishes one.",
+          "uv_entity": "Optional. Without it there is no sun protection sensor and no UV warning. Met.no, Home Assistant's default weather source, publishes no UV index — OpenWeatherMap and Open-Meteo do.",
+          "room_source": "Sleep and at-home recommendations read the room. Pick a sensor, or enter a fixed range if you have none.",
+          "room_entity": "Only used when the room temperature comes from a sensor.",
+          "room_range": "Only used when no sensor is selected."
         }
       }
     },
     "error": {
       "birth_date_in_future": "The date of birth is in the future.",
-      "invalid_date": "Not a valid date."
+      "invalid_date": "Not a valid date.",
+      "room_entity_required": "No room temperature sensor selected."
     }
   },
   "options": {
@@ -24,6 +44,13 @@
           "room_source": "Room temperature",
           "room_entity": "Room temperature sensor",
           "room_range": "Fixed range"
+        },
+        "data_description": {
+          "weather_entity": "Supplies the outdoor temperature and the weather condition. The apparent temperature is used when the entity publishes one.",
+          "uv_entity": "Optional. Without it there is no sun protection sensor and no UV warning. Met.no, Home Assistant's default weather source, publishes no UV index — OpenWeatherMap and Open-Meteo do.",
+          "room_source": "Sleep and at-home recommendations read the room. Pick a sensor, or enter a fixed range if you have none.",
+          "room_entity": "Only used when the room temperature comes from a sensor.",
+          "room_range": "Only used when no sensor is selected."
         }
       }
     },
