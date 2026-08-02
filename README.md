@@ -52,7 +52,13 @@ device, and its own set of entities.
 
 The card ships inside the integration and registers itself once Tinybreeze is
 set up — there is no second HACS entry to install and no Lovelace resource to
-add by hand.
+add by hand. It registers itself twice over: as an extra module URL and as a
+Lovelace resource. Both are needed. The module URL is written into the
+rendered index page, which the iOS companion app keeps in its cache and does
+not re-fetch — on that client only the Lovelace resource arrives, and without
+it every Tinybreeze card shows a configuration error. If you added the
+resource by hand at some point, leave it: the integration adopts that entry
+and keeps its version tag current rather than adding a second one.
 
 ## Configuration
 
